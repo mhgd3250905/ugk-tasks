@@ -1,0 +1,26 @@
+{
+	"goal": "给定视频、中文配音音频和中文字幕,产出中文配音软字幕版 MP4 与硬字幕版 MP4。",
+	"hardConstraints": [
+		"必须把所有最终产物写入本次 task 的 outputDir。",
+		"必须先运行 $TASK_DIR/scripts/compose-video-zh.mjs --preflight; preflight 失败必须立即停止。",
+		"必须使用 ffmpeg/ffprobe 生成和验收媒体文件。",
+		"必须产出 final.zh.mp4,包含视频流、音频流和字幕流。",
+		"必须产出 final.zh.hardsub.mp4,包含视频流和音频流,并烧录中文字幕(ASS 格式,PlayRes=视频尺寸,字号自适应横竖屏不超宽)。",
+		"配音音频短于视频时必须保留完整视频时长,不得用短音频截断视频。",
+		"不得读取 MIMO_API_KEY,不得调用 TTS,不得翻译字幕。"
+	],
+	"acceptance": [
+		"final.zh.mp4 存在,ffprobe 可解析,且包含视频流、音频流和字幕流。",
+		"final.zh.hardsub.mp4 存在,ffprobe 可解析,且包含视频流和音频流。",
+		"final.zh.mp4 与 final.zh.hardsub.mp4 时长不得明显短于 compose-summary.videoDurationSeconds。",
+		"compose-summary.json 存在且记录 videoPath、audioPath、subtitlePath、subtitleColor、hardsubSubtitlePath、finalVideoPath、hardsubVideoPath。"
+	],
+	"forbidden": [
+		"不得把字幕全文或视频内容贴进最终回复。",
+		"不得读取、打印或要求任何 API key。",
+		"不得硬编码本机输出路径。",
+		"不得在 task 内再调用其他 task。",
+		"不得做 TTS、字幕翻译、下载视频或语音识别。"
+	],
+	"context": "本 task 把视频、中文配音音频和中文字幕合成为软字幕版和硬字幕版 MP4。合成时对短配音音频使用 apad 补静音并保留完整视频时长。硬字幕版用 ASS 格式(PlayResX/PlayResY=视频实际尺寸,字号按视频高度动态算),横屏竖屏都自适应不超宽;不加背景条,长字幕按标点换行 + 拆 cue。"
+}

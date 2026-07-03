@@ -1,0 +1,28 @@
+{
+	"goal": "给定一个中文字幕文件,用 MiMo TTS 生成按字幕时间轴铺好的中文配音音频。",
+	"hardConstraints": [
+		"必须把所有最终产物写入本次 task 的 outputDir。",
+		"必须使用 MiMo TTS API 生成中文配音,API key 只能从环境变量 MIMO_API_KEY 读取,不得要求用户粘贴或回显 key。",
+		"voice 必须是 MiMo 预置音色 ID: mimo_default、冰糖、茉莉、苏打、白桦、Mia、Chloe、Milo、Dean;不允许用自然语言描述冒充 voice。",
+		"必须在调用 TTS 前运行 $TASK_DIR/scripts/subtitle-to-speech.mjs --preflight; preflight 失败必须立即停止。",
+		"preflight 含输入质量门禁:明显低质量的脏字幕(滚动回声碎片过多 shortPct>25%、重复文本 dupPct>20%、清理标记后无对白)必须直接打回,报错只描述需要什么质量的字幕,不得指定具体清洗工具(用户可能未装);不得继续合成脏字幕产出垃圾配音。",
+		"必须逐字幕 cue 生成 TTS 段,不得为了减少 API 调用把多个 cue 合并成一个 speech group。",
+		"不得读取视频文件,不得生成视频文件,不得压制字幕。",
+		"脚本必须输出 [tts] i/n 百分比进度。"
+	],
+	"acceptance": [
+		"source.cues.json 存在且 cue 数量大于 0。",
+		"dub.zh.wav 存在,ffprobe 可解析,且 duration > 0。",
+		"tts-summary.json 存在且记录 subtitlePath、voice、cueCount、speechGroupCount、dubAudioPath,且 voice 等于本次输入 voice。",
+		"speechGroupCount 必须等于 cueCount。",
+		"tts-segments/ 存在,且 fit 音频和 metadata 数量等于 speechGroupCount。"
+	],
+	"forbidden": [
+		"不得把字幕全文或 API key 放进最终回复。",
+		"不得把 API key 的完整值写入文件、命令输出或回复;脚本依据 key 前缀(sk-/tp-)路由 endpoint 属功能必需,不算泄露。",
+		"不得硬编码本机输出路径。",
+		"不得在 task 内再调用其他 task。",
+		"不得做音视频合并、硬字幕、软字幕或视频压制。"
+	],
+	"context": "本 task 用 MiMo TTS 把中文字幕生成为按时间轴铺好的配音音频。dispatcher 根据用户想要的语言、性别和气质选择最接近的 MiMo 预置音色 ID;语气、节奏、感染力等表达方式写入 stylePrompt。"
+}

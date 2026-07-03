@@ -1,0 +1,47 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"metadata.json",
+		"download-summary.json",
+		"*.mp4",
+		"*.vtt"
+	],
+	"runtimeInput": [
+		"url",
+		"maxHeight",
+		"subLangs",
+		"cookiesFromBrowser"
+	],
+	"runtimeInputMeta": {
+		"url": {
+			"description": "必填,公开视频页面链接,支持 yt-dlp 能解析的 http/https URL。",
+			"required": true
+		},
+		"maxHeight": {
+			"description": "可选。用户指定的视频高度上限(像素)。指定时下载 <= 该高度的最大可用规格(不超)。不指定时脚本按固定档位链 1080→720→480→360→240→144 自动选第一个可用档位。用户说 1080p/720p/高清/480 等明确分辨率要求时填对应数字;用户没提分辨率就省略此字段(系统不补默认,脚本走自动选择)。",
+			"required": false
+		},
+		"subLangs": {
+			"description": "可选。字幕语言,传给 yt-dlp --sub-langs(如 en,zh,ru)。指定时严格下载指定语种(含自动字幕)。不指定时脚本按优先级自动选:优先下人工字幕的全部语种(量可控);无人工字幕才回退自动字幕的 en+zh;都无则不下字幕。用户明确说要某种语言字幕时填;没提就省略此字段(系统不补默认,脚本走自动选择)。",
+			"required": false
+		},
+		"cookiesFromBrowser": {
+			"description": "可选浏览器登录态来源。只允许 none 或 chrome。用户明确说使用 Chrome 登录态/cookies 时填 chrome;否则默认 none。不要让 worker 手写 yt-dlp cookies 命令。",
+			"required": false,
+			"default": "none",
+			"allowedValues": [
+				"none",
+				"chrome"
+			]
+		}
+	},
+	"requiredTools": [
+		"bash"
+	],
+	"requiredBinaries": [
+		"yt-dlp",
+		"ffmpeg",
+		"ffprobe",
+		"deno"
+	]
+}

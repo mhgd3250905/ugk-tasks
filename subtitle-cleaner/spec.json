@@ -1,0 +1,28 @@
+{
+	"goal": "给定一个本地源字幕文件(TTML/VTT/SRT 任一格式),产出格式归一、无重叠、无回声碎片、无音效标记的标准 SRT。",
+	"hardConstraints": [
+		"必须把所有最终产物写入本次 task 的 outputDir。",
+		"必须使用 taskbook 自带脚本 $TASK_DIR/scripts/clean-subtitle.mjs 执行清洗。",
+		"必须自动识别输入格式(TTML/VTT/SRT),无需用户声明格式。",
+		"清洗只做四件事:格式归一(转 SRT)、去重(删除 YouTube 滚动回声碎片)、重排(把重叠时间改成首尾相接)、去音效标记([Music]/[Applause]/【环境音】等短括号标记)。",
+		"不得翻译、不得合并句子、不得改写文本语义、不得调整对白顺序。清洗是纯结构性操作,不碰文本内容。",
+		"不得下载视频、不得调用其他 task。",
+		"坏时间码(零时长/倒置 cue)必须报错拦截,不得静默丢弃文本。"
+	],
+	"acceptance": [
+		"cleaned.srt 存在、可解析为有效 SRT、包含非空文本。",
+		"cleaned.srt 相邻 cue 不得重叠(下一条 startMs >= 上一条 endMs)。",
+		"cleaned.srt 不得包含短于 500ms 的 cue(回声碎片应被去重清除)。",
+		"cleaned.srt 不得包含短括号音效标记([Music]/[Applause]/【环境音】等)。",
+		"clean-report.json 存在且记录 sourceSubtitlePath、outputSubtitlePath、format、cueCount、overlapCount、shortCount。"
+	],
+	"forbidden": [
+		"不得翻译或改写对白文本。",
+		"不得合并/拆分句子(只做去重和重排,不做语义合并)。",
+		"不得把字幕全文贴进最终回复。",
+		"不得硬编码本机输出路径。",
+		"不得在 task 内再调用其他 task。",
+		"不得静默丢弃带文本的 cue(坏时间码必须报错)。"
+	],
+	"context": "把脏字幕(YouTube 滚动字幕、TTML、各种来源的 VTT/SRT)洗成干净标准 SRT。YouTube 自动字幕的滚动回声碎片(10ms 短 cue 重复相邻长 cue 文本)是主要清洗目标。本 task 只负责清洗产出,不预设下游如何使用——编排由调用方决定。"
+}

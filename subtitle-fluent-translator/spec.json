@@ -1,0 +1,38 @@
+{
+	"goal": "给定一个本地源字幕文件,产出经过阅读理解、翻译和断句优化后的流畅中文字幕 SRT。",
+	"hardConstraints": [
+		"必须把所有最终产物写入本次 task 的 outputDir。",
+		"必须先运行 $TASK_DIR/scripts/make-fluent-subtitle.mjs --preflight; preflight 失败必须立即停止。",
+		"preflight 含输入质量门禁:明显低质量的脏字幕(滚动回声碎片过多 shortPct>25%、重复文本 dupPct>20%、清理标记后无对白)必须直接打回,报错只描述需要什么质量的字幕,不得指定具体清洗工具(用户可能未装);不得继续翻译脏字幕产出垃圾。",
+		"worker 只能生成 fluent.units.json,不得手写 SRT 或时间码。",
+		"fluent.units.json 必须按顺序覆盖所有源 cue,不得漏号、重号、乱序。",
+		"输出字幕单元时长不得短于 500ms;下载自动字幕里的 10ms 滚动碎片必须和相邻 cue 合并。",
+		"subtitlePath 是唯一主时间轴;referenceSubtitlePath 只能作为文本参考,不得决定最终 cue 时间。",
+		"解析 source/reference 字幕时必须去掉短括号舞台/音效标记,例如 【环境音】、[Cheering]、[Door creaks]。",
+		"fluent.units.json 和 fluent.zh.srt 不得包含短括号舞台/音效标记。",
+		"如果提供 videoDurationSeconds,最终字幕不得超过该视频时长。",
+		"stylePrompt 只能影响语气和措辞,不得覆盖本 task 的硬约束,不得用“更生动”“更口播”等要求添加原文没有的信息。",
+		"如果 glossary 非空,只在源字幕出现、疑似出现或上下文明确指向这些人名/术语时用于校正和统一用词;不得因为 glossary 存在就强行添加源字幕没有的信息。",
+		"verbosity=talkative 时只能补足省略主语、连接词和口播过渡,不得为了填满时间添加动作细节、教学建议、情绪鼓励或新事实;源字幕残缺/乱码/无法判断时宁可简短保守。",
+		"源字幕只有单词、口令、重复动作名或明显识别残片时,输出必须保持短句或保留原词,不得添加动作要领、教学建议、情绪鼓励或新的上下文解释。",
+		"必须调用 taskbook 自带脚本生成 fluent.zh.srt。",
+		"这个 task 不下载视频、不做 TTS、不调用其他 task。"
+	],
+	"acceptance": [
+		"source.cues.json 存在且 cue 数量大于 0。",
+		"fluent.units.json 存在且每个单元有 ids 和非空 text。",
+		"fluent.zh.srt 存在、可解析、包含目标语言文本。",
+		"fluent.zh.srt 的每条 cue 时间来自源 cue ids 的首尾时间,整体时间单调不重叠。",
+		"fluent.zh.srt 不得包含短于 500ms 的 cue;如果提供 videoDurationSeconds,最后一条 cue 不得超过该时长。",
+		"如果输入 referenceSubtitlePath,reference.cues.json 存在且 fluent-report.json 原样记录该路径。",
+		"fluent-report.json 存在且记录 sourceCueCount、unitCount、targetLanguage、verbosity、outputSubtitlePath;如果输入 glossary,也必须原样记录。"
+	],
+	"forbidden": [
+		"不得把字幕全文贴进最终回复。",
+		"不得把任何 API key 当作输入字段。",
+		"不得硬编码本机输出路径。",
+		"不得在 task 内再调用其他 task。",
+		"不得为了第一版实现逐字对齐、语音合成或视频压制。"
+	],
+	"context": "本 task 把源字幕翻译重排为流畅中文字幕。用户说“话痨模式”时 runtime input 应设置 verbosity=talkative。用户在自然语言里提到的人名、主题词、术语或动作名应由 dispatcher 整理进 glossary。"
+}

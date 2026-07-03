@@ -1,0 +1,76 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"source.cues.json",
+		"reference.cues.json",
+		"fluent.units.json",
+		"fluent.zh.srt",
+		"fluent-report.json"
+	],
+	"runtimeInput": [
+		"subtitlePath",
+		"targetLanguage",
+		"verbosity",
+		"stylePrompt",
+		"glossary",
+		"referenceSubtitlePath",
+		"videoDurationSeconds",
+		"maxUnitDurationMs",
+		"maxUnitChars"
+	],
+	"runtimeInputMeta": {
+		"subtitlePath": {
+			"description": "必填,源字幕本地路径,支持 .srt 或 .vtt。必须原样提取为路径字符串。",
+			"required": true
+		},
+		"targetLanguage": {
+			"description": "可选,目标字幕语言。当前视频配音链路只支持 zh-CN,不要填其他语言。",
+			"required": false,
+			"default": "zh-CN",
+			"allowedValues": [
+				"zh-CN"
+			]
+		},
+		"verbosity": {
+			"description": "可选,翻译详略模式。只允许 normal 或 talkative。normal 为正常流畅字幕;talkative 为话痨模式。用户说“话痨模式”“更啰嗦”时填 talkative。",
+			"required": false,
+			"default": "normal",
+			"allowedValues": [
+				"normal",
+				"talkative"
+			]
+		},
+		"stylePrompt": {
+			"description": "可选,翻译和改写风格。默认自然、口语化、适合视频字幕和中文配音。只能影响语气和措辞,不能要求添加原文没有的信息。",
+			"required": false,
+			"default": "自然、口语化、适合视频字幕和中文配音。"
+		},
+		"glossary": {
+			"description": "可选,用户在自然语言里明确提到的人名、队名、主题词、术语或动作名参考,dispatcher 抽取后用分号分隔,例如: bboy lunatic; breaking; toprock; freeze。只在源字幕出现、疑似出现或上下文明确指向这些词时用于校正和统一用词,不要借 glossary 编新内容。",
+			"required": false,
+			"default": ""
+		},
+		"referenceSubtitlePath": {
+			"description": "可选,参考字幕路径,支持 .srt 或 .vtt。只用于核对专名、术语、漏词和文本理解,不得决定最终时间轴;最终时间轴只能来自 subtitlePath。",
+			"required": false,
+			"default": ""
+		},
+		"videoDurationSeconds": {
+			"description": "可选,原视频时长秒数。提供时最终字幕不得超过该时长,用于拦截 Whisper 尾部幻听或字幕越界。",
+			"required": false
+		},
+		"maxUnitDurationMs": {
+			"description": "可选,合并后的多 cue 字幕单元最大覆盖时长,默认 8000。单条源 cue 本身超长时允许保留。",
+			"required": false,
+			"default": 8000
+		},
+		"maxUnitChars": {
+			"description": "可选,每个字幕单元最大目标文字数。不填默认 90。talkative 不自动放宽长度;只改变口播顺滑程度。",
+			"required": false
+		}
+	},
+	"requiredTools": [
+		"bash"
+	],
+	"requiredEnv": []
+}

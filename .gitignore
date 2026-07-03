@@ -1,0 +1,8 @@
+# taskbook.json 是 UGK 运行时历史记录(runs 数组,含本机绝对路径和每次 run 的输入),
+# 随运行变化且含个人环境路径,不进版本库。每个 taskbook 的"定义"是五件套:
+# contract.json / skill.md / spec.json / verify.mjs / scripts/
+**/taskbook.json
+
+# 系统文件
+.DS_Store
+Thumbs.db

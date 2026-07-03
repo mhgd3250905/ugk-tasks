@@ -1,0 +1,20 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"cleaned.srt",
+		"clean-report.json"
+	],
+	"runtimeInput": [
+		"subtitlePath"
+	],
+	"runtimeInputMeta": {
+		"subtitlePath": {
+			"description": "必填,源字幕本地路径。支持 TTML/VTT/SRT 三种格式,自动识别。原样提取为路径字符串。",
+			"required": true
+		}
+	},
+	"requiredTools": [
+		"bash"
+	],
+	"requiredEnv": []
+}

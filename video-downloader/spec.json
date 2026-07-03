@@ -1,0 +1,31 @@
+{
+	"goal": "给定一个公开视频 URL,用 yt-dlp 下载其中的单个视频为 MP4,按用户意图自动选择分辨率与字幕,并在存在可用字幕时下载字幕文件。",
+	"hardConstraints": [
+		"必须使用 taskbook 自带脚本 $TASK_DIR/scripts/download-video.mjs 执行下载。",
+		"必须用 yt-dlp 解析 URL 并下载视频。",
+		"必须用 ffmpeg/ffprobe 支持合并与验收。",
+		"所有产物必须写入本次 task 的 outputDir。",
+		"分辨率和字幕的选择决策必须由 taskbook 脚本依据实际 metadata 做出,worker 只翻译用户意图(指定/未指定),不得自行构造 yt-dlp format/sub-langs 参数。",
+		"maxHeight 指定时选 <= 该高度的最大规格;未指定时按固定档位链 1080→720→480→360→240→144 自动选,采用区间匹配(高度落在某档位的 (下一档, 本档] 区间即算命中,非标准高度如 1058 归入 1080 档),都超档则取可用最大。",
+		"subLangs 指定时严格用指定语种;未指定时四级优先:人工字幕全部语种 → 视频主语言(metadata.language)的自动字幕 → 自动字幕 en+zh → 不下。都无则不下字幕,不算失败。",
+		"字幕有则下载;没有可用字幕不能视为失败。",
+		"默认必须使用 --no-playlist,不得下载整个播放列表。",
+		"需要 Chrome 登录态时必须通过 cookiesFromBrowser=chrome 交给 taskbook 脚本处理,不得由 worker 手写 yt-dlp 命令。"
+	],
+	"acceptance": [
+		"metadata.json 存在且为有效 JSON。",
+		"download-summary.json 存在且记录 extractor、videoFiles、resolutionSelection、subtitleSelection。",
+		"至少一个 .mp4 文件存在、ffprobe 可解析、有视频流且 duration > 0(不设绝对字节下限,完整性看元数据一致性而非文件大小)。",
+		"download-summary.subtitleSelection.langs 非空时,outputDir 下必须存在 .vtt/.srt/.ass 字幕文件;langs 为空表示无可下字幕,不算失败。"
+	],
+	"forbidden": [
+		"不得硬编码本机输出路径。",
+		"不得把视频或字幕内容贴进最终回复。",
+		"不得绕过 taskbook 自带脚本临时手写下载流程。",
+		"不得在 worker 层自行决定分辨率档位或字幕语种(必须交给 taskbook 脚本)。",
+		"不得用绝对字节阈值(如 1MiB)判定下载完整性。",
+		"不得实现 chrome 以外的浏览器 cookies、手写 cookies 文件、播放列表批量下载或平台专用兜底。"
+	],
+	"context": "通用视频下载器。只 url 必填;maxHeight/subLangs/cookiesFromBrowser 可选,未指定时脚本按 metadata 智能选择,保证只丢链接也能下出合理结果。cookiesFromBrowser 只支持 none/chrome,用于 YouTube 429、visitor_data 或需要登录态的站点。"
+}
+

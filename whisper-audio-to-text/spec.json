@@ -1,0 +1,26 @@
+{
+	"goal": "给定本地音视频文件,使用本机 Whisper large-v3-turbo 转写,产出可继续用于字幕优化和配音流程的 SRT/VTT/TXT/JSON。",
+	"hardConstraints": [
+		"必须使用 taskbook 自带脚本 $TASK_DIR/scripts/whisper-audio-to-text.mjs 执行转写。",
+		"必须使用本机 whisper CLI,不得调用 FunASR MCP。",
+		"默认模型必须是 large-v3-turbo。",
+		"默认模型目录必须是 E:\\\\AII\\\\.cache\\\\whisper,不得把模型下载到 C 盘。",
+		"视频文件必须先通过 ffmpeg 提取 16k mono wav 再转写。",
+		"输出产物必须去掉 Whisper 短括号舞台/音效标记,例如 【环境音】、[Cheering]、[Door creaks]。",
+		"所有产物必须写入本次 task 的 outputDir。"
+	],
+	"acceptance": [
+		"transcript.txt 存在且非空。",
+		"transcript.srt 存在且包含至少一个时间码。",
+		"transcript.vtt 存在且包含 WEBVTT。",
+		"transcription.json 存在且为有效 JSON。",
+		"whisper-summary.json 存在且记录 inputFilePath、model、modelDir、language、task。"
+	],
+	"forbidden": [
+		"不得调用 funasr-transcriber 工具。",
+		"不得把模型下载或复制到 C 盘。",
+		"不得删除原始音视频文件。",
+		"不得把转写全文贴进最终回复。"
+	],
+	"context": "本 task 用本机 Whisper large-v3-turbo 把音视频转写为 TXT/SRT/VTT/JSON。这是 audio-to-text 的 Whisper turbo 版本,旧 audio-to-text 可由用户自行移出目录备份。"
+}

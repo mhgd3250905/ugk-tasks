@@ -1,0 +1,44 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"subtitle.zh.*",
+		"subtitle.zh.hardsub.*",
+		"final.zh.mp4",
+		"final.zh.hardsub.mp4",
+		"compose-summary.json"
+	],
+	"runtimeInput": [
+		"videoPath",
+		"audioPath",
+		"subtitlePath",
+		"subtitleColor"
+	],
+	"runtimeInputMeta": {
+		"videoPath": {
+			"description": "必填,本地视频文件路径。必须原样提取为路径字符串。",
+			"required": true
+		},
+		"audioPath": {
+			"description": "必填,中文配音音频路径,通常来自 subtitle-to-speech 的 dub.zh.wav。",
+			"required": true
+		},
+		"subtitlePath": {
+			"description": "必填,中文字幕路径,支持 .srt 或 .vtt。会复制到 outputDir 后用于软字幕和硬字幕。",
+			"required": true
+		},
+		"subtitleColor": {
+			"description": "可选,硬字幕文字颜色。只允许 white、yellow、pink。用户说白色填 white,黄色填 yellow,粉色填 pink。默认 white。",
+			"required": false,
+			"default": "white",
+			"allowedValues": [
+				"white",
+				"yellow",
+				"pink"
+			]
+		}
+	},
+	"requiredTools": [
+		"bash"
+	],
+	"requiredEnv": []
+}

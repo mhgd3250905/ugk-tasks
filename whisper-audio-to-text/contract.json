@@ -1,0 +1,51 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"transcript.txt",
+		"transcript.srt",
+		"transcript.vtt",
+		"transcription.json",
+		"transcript.tsv",
+		"whisper-summary.json",
+		"extracted_audio.wav"
+	],
+	"runtimeInput": [
+		"file_path",
+		"filePath",
+		"language",
+		"task",
+		"model"
+	],
+	"runtimeInputMeta": {
+		"file_path": {
+			"description": "必填,本地音视频文件绝对路径。必须原样提取为路径字符串。",
+			"required": true
+		},
+		"filePath": {
+			"description": "兼容字段,等同 file_path。",
+			"required": false
+		},
+		"language": {
+			"description": "可选,Whisper 语言代码,如 ru/en/ja/zh。不填则自动识别。",
+			"required": false
+		},
+		"task": {
+			"description": "可选,transcribe 或 translate。默认 transcribe。中文配音/字幕优化链路必须用 transcribe;translate 是 Whisper 翻成英文,只在用户明确要英文翻译字幕时使用。",
+			"required": false,
+			"default": "transcribe",
+			"allowedValues": [
+				"transcribe",
+				"translate"
+			]
+		},
+		"model": {
+			"description": "可选,Whisper 模型名。默认 large-v3-turbo,模型目录固定 E:\\\\AII\\\\.cache\\\\whisper。",
+			"required": false,
+			"default": "large-v3-turbo"
+		}
+	},
+	"requiredTools": [
+		"bash"
+	],
+	"requiredEnv": []
+}
