@@ -15,9 +15,9 @@
   };
   const findRelativeTimeLabel = (text) => {
     const patterns = [
-      /\d+\s*(?:分钟|分|mins?|minutes?)(?!\S)/i,
-      /\d+\s*(?:小时|hrs?|hours?)(?!\S)/i,
-      /\d+\s*(?:天|days?)(?!\S)/i,
+      /\d+\s*(?:分钟|分|mins?|minutes?|m)(?!\S)/i,
+      /\d+\s*(?:小时|hrs?|hours?|h)(?!\S)/i,
+      /\d+\s*(?:天|days?|d)(?!\S)/i,
       /\d+\s*(?:周|weeks?|w)(?!\S)/i,
       /\d+\s*(?:个月|月|months?|mos?)(?!\S)/i,
     ];
@@ -106,7 +106,8 @@
         const postedAtLabel = findRelativeTimeLabel(text);
         if (!postedAtLabel) continue;
 
-        // URL 三级优先级
+        // URL 提取：只取帖子独立链接，绝不回退到作者主页
+        // 优先级：/feed/update/ > /posts/*-activity-* > lnkd.in > 其他内部链接 > data-urn 构造
         let sourceLink =
           linkCandidates.find((node) => {
             const candidate = String(node.getAttribute('href') || '').trim();
@@ -120,12 +121,21 @@
             }) || null;
         }
         if (!sourceLink) {
+          // lnkd.in 短链也是帖子链接
+          sourceLink =
+            linkCandidates.find((node) => {
+              const candidate = String(node.getAttribute('href') || '').trim();
+              return candidate.includes('lnkd.in/');
+            }) || null;
+        }
+        if (!sourceLink) {
           sourceLink =
             linkCandidates.find((node) => {
               const candidate = String(node.getAttribute('href') || '').trim();
               if (!candidate) return false;
               if (candidate.includes('/in/') || candidate.includes('/company/')) return false;
               if (candidate.includes('/search/')) return false;
+              if (candidate.includes('/mynetwork/') || candidate.includes('/messaging/')) return false;
               return isInternalLink(candidate);
             }) || null;
         }
@@ -150,11 +160,40 @@
             }
           } catch (_e) { /* 保留 safety/go 作 fallback */ }
         }
-        if (!resultUrl) resultUrl = toAbsoluteUrl(href);
 
+        // 从容器的 data-urn / data-entity-urn 提取帖子 URN 构造 URL
+        if (!resultUrl) {
+          const urn = container?.getAttribute('data-urn')
+            || container?.getAttribute('data-entity-urn')
+            || container?.querySelector('[data-urn]')?.getAttribute('data-urn')
+            || '';
+          if (urn && urn.includes('activity:')) {
+            resultUrl = `https://www.linkedin.com/feed/update/${urn}`;
+          }
+        }
+
+        // 最终兜底：生成合成唯一 URL（基于作者+时间+内容哈希）
+        if (!resultUrl) {
+          // 简单哈希函数
+          let hash = 0;
+          const hashInput = `${authorHandle}|${postedAtLabel}|${text.substring(0, 200)}`;
+          for (let i = 0; i < hashInput.length; i++) {
+            const char = hashInput.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+          }
+          const hashStr = Math.abs(hash).toString(36);
+          resultUrl = `https://www.linkedin.com/feed/update/urn:li:activity:${hashStr}`;
+        }
+
+        // 去重：authorHandle|postedAtLabel|url 组合 + 纯 URL 兜底
         const dedupeKey = `${authorHandle}|${postedAtLabel}|${resultUrl}`;
         if (window.__linkedinCollector.seen[dedupeKey]) continue;
+        // URL 兜底去重：同一帖子 URL 只保留第一次出现
+        if (window.__linkedinCollector.seenUrl && window.__linkedinCollector.seenUrl[resultUrl]) continue;
         window.__linkedinCollector.seen[dedupeKey] = true;
+        if (!window.__linkedinCollector.seenUrl) window.__linkedinCollector.seenUrl = {};
+        window.__linkedinCollector.seenUrl[resultUrl] = true;
 
         window.__linkedinCollector.rows.push({
           postedAt: '',

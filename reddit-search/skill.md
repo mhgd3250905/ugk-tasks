@@ -87,9 +87,17 @@ for offset in 0, 50, 100, ... until hasMore === false:
   累积进 worker 内存
 ```
 
-### 7. 归一化 + 去重(worker 调 node 脚本)
+### 7. 取 raw + 归一化去重(两条 bash,worker 不碰 raw 内容)
 
-把累积的 posts 存到 `$TASK_OUTPUT_DIR/_raw.json`,用 filter-lib 归一化 + 去重:
+**关键认知:worker 是 LLM agent,不是 node 进程** —— 唯一能落盘的是 `write` tool,逐 token 输出 87 条 raw 实测 ~4min(慢 + JSON 易错)。所以**严禁用 `write` tool 输出 raw**。
+
+**第 7a 步:取 raw 落盘**(node 直连 CDP 循环 evaluate dump-result.js,读 `window.__redditCollector.posts` 全量写盘,<1s):
+
+```bash
+node "$TASK_DIR/scripts/collect-raw.mjs" --output "$TASK_OUTPUT_DIR/_raw.json"
+```
+
+**第 7b 步:filter-lib 归一化 + 去重**(读 `_raw.json` bare array,输出 `_filtered.json`):
 
 ```bash
 node -e "
@@ -102,16 +110,31 @@ import('file:///' + process.env.TASK_DIR.replace(/\\\\/g,'/') + '/scripts/filter
 })" "<keyword>" "<days>" > "$TASK_OUTPUT_DIR/_filtered.json"
 ```
 
-### 8. 写输出文件
+### 8. 写输出文件(单条 bash,worker 不碰 results 内容)
 
-worker 读 `_filtered.json`,拼成下面结构,`fs.writeFileSync` 到 `$TASK_OUTPUT_DIR/reddit_search_results.json`:
+**关键认知:worker 是 LLM agent,不是 node 进程** —— 唯一能落盘的是 `write` tool,它会逐 token 输出整个 JSON(实测同体量 +124s,且 LLM 手拼 JSON 易转义错)。所以**严禁用 `write` tool 输出 results**。
+
+正确做法:bash 调 `scripts/write-output.mjs`,它读 `_filtered.json` + `JSON.stringify` + `writeFileSync`(确定性、<1s、JSON 保证合法)。worker 只把第 5 步的 benchmark、keyword/timePhrase/days、queryUrl 作为**小参数**传进去:
+
+```bash
+node "$TASK_DIR/scripts/write-output.mjs" \
+  --keyword "<原始 keyword>" \
+  --timePhrase "<timePhrase>" \
+  --days <days> \
+  --queryUrl "<第1步 build-url.mjs 输出的 URL>" \
+  --benchmark '{"stopReason":"<第5步返回>","rounds":<N>,"maxRounds":<N>,"totalCollected":<N>,"totalRunMs":<N>}' \
+  --filtered "$TASK_OUTPUT_DIR/_filtered.json" \
+  --output "$TASK_OUTPUT_DIR/reddit_search_results.json"
+```
+
+脚本内部:读 `_filtered.json`(filter-lib `selectPosts` 产物)→ 丢 postId → `timeRange=mapDaysToTimeRange(days)`(import filter-lib)→ 包 envelope → `JSON.stringify` → `writeFileSync` → round-trip 自检。产出结构:
 
 ```json
 {
   "platform": "Reddit",
   "keyword": "<原始 keyword>",
   "retrievedAt": "<ISO>",
-  "queryUrl": "<第1步 build-url.mjs 输出的 URL>",
+  "queryUrl": "<URL>",
   "timeWindow": { "timePhrase": "<timePhrase>", "days": <days>, "timeRange": "<hour|day|week|month|year|all>" },
   "benchmark": {
     "stopReason": "<第5步返回>",
@@ -135,6 +158,8 @@ worker 读 `_filtered.json`,拼成下面结构,`fs.writeFileSync` 到 `$TASK_OUT
   ]
 }
 ```
+
+`filteredRows` 字段脚本用 `_filtered.json` 实际长度填。`benchmark` 参数:第 5 步 scroll-and-collect.js 返回值(stopReason←stoppedReason/rounds/totalCollected←totalPosts/totalRunMs)+ maxRounds(来自配置)组装成 JSON 对象,单引号包裹传进。
 
 ### 9. 收尾
 

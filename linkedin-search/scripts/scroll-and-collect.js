@@ -171,13 +171,20 @@ new Promise((resolve) => {
       const metrics = getMetrics();
       const rowsAfter = window.__linkedinCollector?.rows?.length || 0;
       const newRows = rowsAfter - rowsBefore;
-      const scrollStale = metrics.scrollH === prevScrollH;
+      // ponytail: scrollStale 用容差(±20px),不用严格 ===。LinkedIn 虚拟列表到底时
+      // scrollHeight 仍有 ±几像素波动(虚拟 DOM 回收/重建),严格相等永远 false →
+      // noProgress 永远不成立 → 死循环到 hardCap/超时(实测 5 分钟超时才停,但已到底)。
+      const scrollStale = Math.abs(metrics.scrollH - prevScrollH) <= 20;
       const nearBottom = metrics.scrollTop + metrics.clientH >= metrics.scrollH - 50;
 
-      // 核心到底判断:双信号 —— 页面高度停滞 AND 没有新帖被收集。
-      // 单看 scrollHeight 不够(LinkedIn 虚拟列表会让高度波动);单看新帖也不够(加载延迟)。
-      // 两个都 stale 才算一轮"无进展"。
-      const noProgress = scrollStale && newRows === 0;
+      // 核心到底判断:两个独立信号任一连续命中即算无进展 ——
+      //   (a) 高度停滞(容差)且无新帖:scrollStale && newRows===0
+      //   (b) 已到底(nearBottom)且无新帖:nearBottom && newRows===0
+      // 单看 scrollHeight 不够(波动);单看新帖不够(加载延迟);单看 nearBottom 不够(中间也有 nearBottom 假象)。
+      // 但"到底 + 无新帖"是强信号,不该被 scrollHeight 波动否决。
+      const noProgressByHeight = scrollStale && newRows === 0;
+      const noProgressAtBottom = nearBottom && newRows === 0;
+      const noProgress = noProgressByHeight || noProgressAtBottom;
 
       if (noProgress && nearBottom && !scrollResult.buttonClicked) {
         // bounce:上滚 → 等待 → 下滚 → 等待 → 重新检查双信号
@@ -188,9 +195,10 @@ new Promise((resolve) => {
             const recheckRows = window.__linkedinCollector?.rows?.length || 0;
             const recheckMetrics = getMetrics();
             const bouncedNew = recheckRows - rowsAfter;
-            const bouncedStale = recheckMetrics.scrollH === prevScrollH;
-            // bounce 后:有新帖 OR 高度增长 → 还有内容,重置继续滚
-            if (bouncedNew > 0 || !bouncedStale) {
+            const bouncedStale = Math.abs(recheckMetrics.scrollH - prevScrollH) <= 20;
+            const bouncedNearBottom = recheckMetrics.scrollTop + recheckMetrics.clientH >= recheckMetrics.scrollH - 50;
+            // bounce 后:有新帖 OR 高度增长(超容差)OR 不在底 → 还有内容,重置继续滚
+            if (bouncedNew > 0 || (!bouncedStale && !bouncedNearBottom)) {
               prevScrollH = recheckMetrics.scrollH;
               consecutiveStale = 0;
               setTimeout(doRound, 200);
@@ -204,7 +212,7 @@ new Promise((resolve) => {
           }, 1500 + Math.random() * 1500);
         }, 1500 + Math.random() * 1500);
       } else {
-        // 有进展(高度增长 或 有新帖 或 还没到底)→ 重置 stale 计数,继续滚
+        // 有进展(高度增长超容差 或 有新帖 或 还没到底)→ 重置 stale 计数,继续滚
         consecutiveStale = 0;
         prevScrollH = metrics.scrollH;
         setTimeout(doRound, 200);

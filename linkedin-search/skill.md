@@ -79,7 +79,7 @@ chrome_cdp action=evaluate expression="(() => { window.__linkedinRunConfig = { k
 
 ### 5. 跑滚动采集(长 evaluate,滚到底为止)
 
-读 `$TASK_DIR/scripts/scroll-and-collect.js` 全文,作为 `expression` 传给 `chrome_cdp evaluate`,**带 `timeoutMs: 300000`**(5 分钟上限)。
+读 `$TASK_DIR/scripts/scroll-and-collect.js` 全文,作为 `expression` 传给 `chrome_cdp evaluate`,**带 `timeoutMs: 480000`**(8 分钟上限)。
 
 返回值是**摘要 + 预览**(小):`stoppedReason, scrollStatus{actualRounds,buttonClicks,totalDiscovered}, totalRows, rows(预览50条)`。全量结果在 `window.__linkedinCollector.rows`。
 - `stoppedReason=bottom_reached` = 连续 5 轮(高度停滞 AND 无新帖)→ **真到底了(正常完成,应走这条)**
@@ -89,58 +89,51 @@ chrome_cdp action=evaluate expression="(() => { window.__linkedinRunConfig = { k
 
 > ⚠️ **正常情况必须是 `bottom_reached`**。若返回 `safety_cap_reached` 或 `max_rows_reached`,说明没滚到底就被安全网截断了 —— 检查是不是脚本异常或反爬持续灌水,而不是把这当正常。
 
-记下返回的 `totalRows`(全量条数),下一步分块数 = `ceil(totalRows / 50)`。**worker 不做时间过滤**(LinkedIn datePosted 已服务端过滤)。
+记下返回的 `scrollStatus` 对象(下一步作为 benchmark 传给落地脚本)。**worker 不做时间过滤**(LinkedIn datePosted 已服务端过滤)。
 
-### 6. 分块 dump 全量(核心落地)⚠️ 数据已经在 worker 手里,不要传输
+### 6. 取数 + 落地(单条 bash,worker 不碰 rows 内容)
 
-**关键认知:worker 是 node 进程,有 fs。`chrome_cdp evaluate` 的返回值直接就是数据本身 —— 不需要从页面"传输"到 worker,不需要下载,不需要 HTTP 服务器。** 每次 evaluate 返回的那块 rows,直接在 worker 内存里累积进 results 数组。
+**关键认知:worker 是 LLM agent,不是 node 进程** —— 唯一能落盘的是 `write` tool,它会逐 token 输出整个 JSON(实测 33KB 花 +124s,且 LLM 手拼 JSON 易转义错)。所以**严禁用 `write` tool 输出 results**。
 
-循环调 dump-result.js,每次 offset += 50。读 `$TASK_DIR/scripts/dump-result.js` 全文,循环:
+正确做法:bash 调 `scripts/collect-and-write.mjs`,它自己直连 CDP 取 rows + `JSON.stringify` + `writeFileSync`(确定性、<1s、JSON 保证合法)。worker 只把第 0 步的 queryUrl、第 5 步的 scrollStatus、keyword/timePhrase/dateRange 作为**小参数**传进去(rows 内容完全不经过 worker):
 
+```bash
+node "$TASK_DIR/scripts/collect-and-write.mjs" \
+  --keyword "<原始 keyword>" \
+  --timePhrase "<timePhrase>" \
+  --dateRange <past-24h|past-week|past-month> \
+  --queryUrl "<第0步 build-url.mjs 输出的 URL>" \
+  --benchmark '<第5步 scrollStatus 对象的 JSON>' \
+  --output "$TASK_OUTPUT_DIR/linkedin_search_results.json"
 ```
-for offset in 0, 50, 100, ... until hasMore === false:
-  chrome_cdp action=evaluate expression="(() => { window.__linkedinDumpConfig = { offset: <offset>, limit: 50 }; return <dump-result.js 全文作为 IIFE> })()" reason="local Chrome CDP logged-in browser state for LinkedIn content search" normalAccessAttempted=true
-  // evaluate 的返回值直接就是 { ok, rows: [...50条...], hasMore, totalRows }
-  // 把返回的 rows 直接 push 进 worker 内存里的 results 数组(在 node 进程内,不是页面里)
-```
 
-全部块累积完后,results 数组就在 worker 内存里,下一步直接 `fs.writeFileSync` 写到 $TASK_OUTPUT_DIR。
-
-**🚫 严禁的数据落地方式(都是错误心智模型,会触发弹窗/失败):**
-- ❌ **不要触发浏览器下载**(createObjectURL/a.click/saveAs/导出)—— 数据不在页面,在 worker 手里
-- ❌ **不要启动本地 HTTP 服务器让页面 POST**(save-server 方案)—— worker 有 fs,不需要传输
-- ❌ **不要用 sendBeacon / fetch 从页面往外传**—— 数据已经通过 evaluate 返回值到了 worker
-- ❌ **不要找"下载文件再复制"**—— 根本不该有下载产生
-
-worker 是 node 进程,唯一正确的落地方式是 `fs.writeFileSync`(下一步第 7 步)。
-
-### 7. 写输出文件
-
-把第 5 步的 benchmark、第 6 步累积(在 worker 内存里)的完整 results 数组,拼成下面结构,**用 worker 自己的 node `fs.writeFileSync`**(不是浏览器端!)写到 `$TASK_OUTPUT_DIR/linkedin_search_results.json`:
+脚本内部:循环 `chrome_cdp evaluate dump-result.js`(offset+=100,复用当前 LinkedIn tab)取全量 rows → 组装 envelope → `JSON.stringify` → `writeFileSync` → round-trip 自检。产出结构:
 
 ```json
 {
   "platform": "LinkedIn",
   "keyword": "<原始 keyword>",
   "retrievedAt": "<ISO>",
-  "queryUrl": "<第0步 build-url.mjs 输出的 URL>",
+  "queryUrl": "<URL>",
   "timeWindow": { "timePhrase": "<timePhrase>", "dateRange": "<dateRange>" },
   "benchmark": {
-    "stopReason": "<第5步 scrollStatus.stoppedReason>",
+    "stopReason": "<stoppedReason>",
     "scrollRounds": <actualRounds>,
     "totalDiscovered": <totalDiscovered>,
     "buttonClicks": <buttonClicks>,
     "inWindow": <results.length>
   },
   "results": [
-    { "postedAtLabel": "...", "postedAt": "<解析出的ISO或空>", "url": "...", "content": "...(完整原文)...", "authorName": "...", "authorHandle": "..." }
+    { "postedAtLabel": "...", "postedAt": "<ISO或空>", "url": "...", "content": "...(完整原文)...", "authorName": "...", "authorHandle": "..." }
   ]
 }
 ```
 
-字段说明:`postedAt` = 把 postedAtLabel 解析成 ISO(解析不出则留空);`content` 保留原文;`authorHandle` 必须是 `/in/` 或 `/company/` 链接。
+`benchmark` 参数:把第 5 步返回的 `scrollStatus` 对象(含 stoppedReason/actualRounds/totalDiscovered/buttonClicks)整体 `JSON.stringify` 后作为 `--benchmark` 的值传进(单引号包裹,bash 安全)。脚本会映射字段名(`stoppedReason→stopReason`、`actualRounds→scrollRounds` 等)。
 
-### 8. 收尾
+**🚫 严禁:** 用 `write` tool 输出 results(慢 + JSON 易错);触发浏览器下载;启 HTTP 服务器传数据(数据已通过 CDP 到了 node,无需传输)。
+
+### 7. 收尾
 
 最终回复只输出:输出文件路径 + 简短统计(stopReason / scrollRounds / totalDiscovered / inWindow / timeWindow.dateRange)。**不要把 results 内容贴进回复** —— 全量已落文件,回复只给路径。
 

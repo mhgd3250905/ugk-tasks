@@ -165,16 +165,31 @@ import('file:///' + process.env.TASK_DIR + '/scripts/filter-lib.mjs').then(lib =
 })" "<keyword>" "<days>" > "$TASK_OUTPUT_DIR/_filtered.json"
 ```
 
-### 10. 写输出文件
+### 10. 写输出文件(单条 bash,worker 不碰 results 内容)
 
-worker 读 `_filtered.json`,拼成下面结构,`fs.writeFileSync` 到 `$TASK_OUTPUT_DIR/ins_search_results.json`:
+**关键认知:worker 是 LLM agent,不是 node 进程** —— 唯一能落盘的是 `write` tool,它会逐 token 输出整个 JSON(实测同体量 +124s,且 LLM 手拼 JSON 易转义错)。所以**严禁用 `write` tool 输出 results**。
+
+正确做法:bash 调 `scripts/write-output.mjs`,它读 `_filtered.json` + `JSON.stringify` + `writeFileSync`(确定性、<1s、JSON 保证合法)。worker 只把第 5 步起累积的 benchmark(含 seeds[])、keyword/timePhrase/days、queryUrl 作为**小参数**传进去:
+
+```bash
+node "$TASK_DIR/scripts/write-output.mjs" \
+  --keyword "<原始 keyword>" \
+  --timePhrase "<timePhrase>" \
+  --days <days> \
+  --queryUrl "<第1步 build-url.mjs 输出的 URL>" \
+  --benchmark '<benchmark JSON,见下>' \
+  --filtered "$TASK_OUTPUT_DIR/_filtered.json" \
+  --output "$TASK_OUTPUT_DIR/ins_search_results.json"
+```
+
+脚本内部:读 `_filtered.json`(filter-lib `selectRecentRelevantPosts` 产物)→ `postUrl→url` 映射 → 包 envelope → `JSON.stringify` → `writeFileSync` → round-trip 自检。产出结构:
 
 ```json
 {
   "platform": "Instagram",
   "keyword": "<原始 keyword>",
   "retrievedAt": "<ISO>",
-  "queryUrl": "<第1步 build-url.mjs 输出的 URL>",
+  "queryUrl": "<URL>",
   "timeWindow": { "timePhrase": "<timePhrase>", "days": <days> },
   "benchmark": {
     "seedsScanned": <N>,
@@ -199,6 +214,8 @@ worker 读 `_filtered.json`,拼成下面结构,`fs.writeFileSync` 到 `$TASK_OUT
   ]
 }
 ```
+
+`filteredRows` 字段脚本用 `_filtered.json` 实际长度填。`benchmark` 参数:worker 把累积统计组装成 JSON 对象(seedsScanned/totalDiscovered/detailFetched 来自 worker 循环计数;stopReason 汇总;`seeds[]` 是每个 seed-scroll.js 返回值的摘要),单引号包裹传进。
 
 ### 11. 收尾
 
