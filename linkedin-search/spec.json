@@ -1,0 +1,40 @@
+{
+	"goal": "给定 keyword 和时间意图,dispatcher 把时间归并到 LinkedIn 原生三档(past-24h/past-week/past-month),worker 用 UGK 管理的 chrome_cdp 搜索 LinkedIn 内容(按最新排序 + 时间档位过滤),把完整结构化结果写入 $TASK_OUTPUT_DIR/linkedin_search_results.json。headless 友好,并行安全。",
+	"hardConstraints": [
+		"只用 UGK 管理的 chrome_cdp 工具操作浏览器,不碰端口/WebSocket/Docker/host-bridge/proxy:3456。",
+		"查询 URL 由 scripts/build-url.mjs 确定性生成(worker 调脚本拿,不自己拼),含 keywords + origin=FACETED_SEARCH + sortBy=date_posted + datePosted 档位四个参数。dateRange 只能是 past-24h/past-week/past-month 三者之一。",
+		"dateRange 由 dispatcher 算好注入。dispatcher 是 LLM,会把用户时间意图归并到覆盖它的最近档位(不漏)。worker 不解析自然语言时间、不换算档位、不构造 URL。",
+		"LinkedIn 的 datePosted 已在服务端按档位过滤,worker 不需要本地时间过滤(dump 回来的就是档位内全集)。",
+		"LinkedIn 滚动容器是 <main id='workspace'>(不是 window),用无限滚动 + 按钮双策略 + bounce 反爬。这些在 scripts/ 里已实现,worker 只管调。",
+		"主产物必须是 $TASK_OUTPUT_DIR/linkedin_search_results.json,可被 JSON.parse。",
+		"全量结果必须落地到文件 —— worker 分块 evaluate dump-result.js,把每块 append 进同一个文件,不截断单条原文。",
+		"不要把全量 rows 一次性塞进 worker 上下文(单次 evaluate 返回值过大);用 offset+=limit 分块。",
+		"chrome_cdp 调用要带英文 reason,提到 local Chrome CDP / logged-in browser state。",
+		"不要做主题分析/情感分析/聚类 —— 这个 task 只负责收集和落盘。",
+		"runtime input 的扁平字段都是标量。若 keyword/dateRange 缺失或非标量,说明 dispatcher 失败,worker 应报错退出,不要现编默认值。",
+		"登录墙/captcha:scroll-and-collect.js 会检测到 login_required 并停止。worker 照实上报,不编造结果。"
+	],
+	"acceptance": [
+		"$TASK_OUTPUT_DIR/linkedin_search_results.json 存在且可被 JSON.parse。",
+		"输出 JSON 至少含 platform, keyword, retrievedAt, queryUrl, timeWindow, benchmark, results 字段;results 为数组。",
+		"timeWindow 是对象,含 dateRange, timePhrase 字段;dateRange 是 past-24h/past-week/past-month 之一。",
+		"results 非空时,每条至少含 postedAtLabel, content, url, authorHandle 字段之一,且含 authorName 或 authorHandle 之一。",
+		"content 字段保留原文(不截断,或保留 collectVisiblePosts 的 cleanCardText 完整结果)。",
+		"benchmark 是对象,含 stopReason, scrollRounds, totalDiscovered, buttonClicks, inWindow 字段。",
+		"results 条数与 benchmark.inWindow 一致(全量落地,不丢),除非遇到 login_required(此时 results 为空且 benchmark.stopReason=login_required)。",
+		"queryUrl 是 LinkedIn 内容搜索 URL,含 sortBy 和 datePosted 两个参数(由 build-url.mjs 生成)。"
+	],
+	"forbidden": [
+		"不要用 host-bridge / proxy:3456 / Docker sidecar / web-access / 127.0.0.1:3456 浏览器代理(已废弃,改用 chrome_cdp 工具)。",
+		"不要调 subagent 分块摘要(死代码)。",
+		"不要把搜索脚本逻辑复制进 worker 现写 —— 调用 $TASK_DIR/scripts/ 下的脚本。",
+		"不要在 verify 里要求结果必须 ≥1 条或 benchmark 达固定分数(LinkedIn 可能返回空或要求登录)。",
+		"不要在 worker 里写自然语言时间解析脚本/穷举正则 —— 时间由 dispatcher 算好(dateRange),URL 由 build-url.mjs 生成。",
+		"不要用 window.scrollTo 滚动 —— LinkedIn 的真正滚动容器是 <main id='workspace'>(脚本已处理)。",
+		"不要在 runtime input 缺失/不完整时现编默认值 —— 直接报错退出。",
+		"不要自造 dateRange 值(如 past-year/past-3-months)—— LinkedIn 只支持 past-24h/past-week/past-month 三档。",
+		"不要 worker 自己拼 URL —— 必须调 build-url.mjs(避免漏 sortBy/datePosted 参数)。",
+		"不要触发浏览器下载 / 启动本地 HTTP server / 用 sendBeacon 从页面传数据 —— worker 是 node 进程,chrome_cdp evaluate 的返回值直接就是数据,用 node fs.writeFileSync 写文件即可。"
+	],
+	"context": "taskbook 自带脚本在 $TASK_DIR/scripts/(环境变量 TASK_DIR)。dispatcher 把自然语言时间意图归并到 LinkedIn 原生三档(dateRange)。流程:build-url.mjs 生成完整 URL → navigate → dom-collector.js(装收集器)→ 设 __linkedinRunConfig(keyword,maxScrolls) → scroll-and-collect.js(timeoutMs 180000,长 evaluate)→ 循环 dump-result.js(offset+=50)分块取全量 → worker 拼装写文件。LinkedIn datePosted 已服务端过滤,worker 不本地过滤。worker 是一次性进程,退出即销毁上下文。"
+}

@@ -1,0 +1,28 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"tiktok_search_results.json"
+	],
+	"runtimeInput": [
+		"keyword",
+		"timePhrase",
+		"days"
+	],
+	"runtimeInputMeta": {
+		"keyword": {
+			"description": "TikTok search keyword. Used verbatim in the TikTok search query URL. Do not expand or rewrite unless explicitly included by the user.",
+			"required": true
+		},
+		"timePhrase": {
+			"description": "The user's original time phrase, preserved verbatim. Any language. e.g. 最近30天, 上周, past month, last week. Just echo what the user said about time.",
+			"required": true
+		},
+		"days": {
+			"description": "Positive integer. Number of days back to include (posting time window = now - days*24h to now). You are an LLM, so COMPUTE this from the time phrase. e.g. '最近30天' → 30, '上周' → 7, '过去三个月' → 90. Round UP for partial days (e.g. 'past 36 hours' → 2 days).",
+			"required": true
+		}
+	},
+	"requiredTools": [
+		"chrome_cdp"
+	]
+}

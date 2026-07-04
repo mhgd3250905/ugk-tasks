@@ -1,0 +1,40 @@
+{
+	"goal": "给定 keyword 和自然语言时间意图,dispatcher 把时间算成 days(正整数),worker 用 UGK 管理的 chrome_cdp 在登录态下搜索 Reddit(SSR 搜索页,t 参数服务端过滤时间),滚动加载全量,把完整结构化结果(title/subreddit/ISO时间/votes/comments/permalink)写入 $TASK_OUTPUT_DIR/reddit_search_results.json。headless 友好,并行安全。",
+	"hardConstraints": [
+		"只用 UGK 管理的 chrome_cdp 工具操作浏览器(复用用户登录态 cookies),不碰端口/WebSocket/Docker。Reddit 2026 强制 OAuth,匿名 .json/.rss 不稳,但登录态 CDP 访问 SSR 搜索页正常。",
+		"查询 URL 由 scripts/build-url.mjs 确定性生成(worker 调脚本拿),含 q=encodeURIComponent(keyword) + sort=new + t=<timeRange>。timeRange 由 filter-lib.mjs 的 mapDaysToTimeRange(days) 算出(hour/day/week/month/year/all)。",
+		"days 由 dispatcher 算好注入。worker 不解析自然语言时间,只把 days 映射成 Reddit 档位(调 filter-lib)。",
+		"Reddit t 参数已服务端过滤时间(SSR 搜索页只返回档位内帖子),worker 不需要本地时间过滤(dump 回来的就是档位内全集)。但 normalizeRedditPost 会校验 postedAt 是有效 ISO,丢弃解析失败的。",
+		"Reddit 搜索结果用无限滚动加载更多。scripts/scroll-and-collect.js 已实现平滑滚动 + stale 检测(连续 5 轮无新帖 → bottom_reached)。",
+		"DOM 抽取策略(2026 实测命中):帖子链接在 <h2> 里的 a[href*=/comments/],时间在 <time datetime=ISO>,votes/comments 在容器 innerText('N votes·M comments'),subreddit 从 a[href*=/r/] 提。列表页无 author/selftext(要进详情页,本 task 不做)。",
+		"主产物必须是 $TASK_OUTPUT_DIR/reddit_search_results.json,可被 JSON.parse。",
+		"全量结果必须落地到文件 —— worker 分块 evaluate dump-result.js 取全量,累积写文件。",
+		"chrome_cdp 调用要带英文 reason,提到 local Chrome CDP / logged-in browser state。",
+		"不要做主题分析/情感分析 —— 这个 task 只负责收集和落盘。",
+		"runtime input 的字段都是标量。若 keyword/days 缺失或非标量(days 非正整数),说明 dispatcher 失败,worker 应报错退出。"
+	],
+	"acceptance": [
+		"$TASK_OUTPUT_DIR/reddit_search_results.json 存在且可被 JSON.parse。",
+		"输出 JSON 至少含 platform, keyword, retrievedAt, queryUrl, timeWindow, benchmark, results 字段;results 为数组。",
+		"platform 是 'Reddit'。",
+		"keyword 等于 TASK_INPUT.keyword(worker 不改写)。",
+		"timeWindow 是对象,含 days(正整数)、timePhrase、timeRange(Reddit 档位之一)字段。",
+		"queryUrl 是 Reddit 搜索 URL,含 q= 和 t= 参数(sort=new)。",
+		"results 非空时,每条至少含 postedAt(ISO), title, permalink, subreddit;permalink 必须是 /r/{sub}/comments/{id}/ 格式或完整 reddit.com URL。",
+		"每条 results[].postedAt 必须是有效 ISO 日期。",
+		"results 条数与 benchmark.filteredRows 一致(全量落地,不丢)。",
+		"results 内 permalink 唯一(无重复帖子)。",
+		"benchmark 是对象,含 stopReason, rounds, totalCollected, filteredRows 字段。"
+	],
+	"forbidden": [
+		"不要用 Reddit 匿名 .json / .rss 端点(2026 已反爬不稳)—— 必须用 chrome_cdp 访问 SSR 登录态页面。",
+		"不要调 Reddit OAuth GraphQL(需要注册 app,2026 申请门槛高)—— SSR DOM 已含全部需要的数据。",
+		"不要调 subagent 分块摘要(死代码)。",
+		"不要把搜索/过滤逻辑复制进 worker 现写 —— 调用 $TASK_DIR/scripts/ 下的脚本。",
+		"不要在 verify 里要求结果必须 ≥1 条或 author 必须非空(Reddit 列表页无 author;可能返回空)。",
+		"不要在 worker 里写自然语言时间解析 —— 时间由 dispatcher 算好(days),档位由 mapDaysToTimeRange 算。",
+		"不要在 runtime input 缺失/不完整时现编默认值 —— 直接报错退出。",
+		"不要触发浏览器下载 / 启动本地 HTTP server —— worker 是 node 进程,chrome_cdp evaluate 返回值直接就是数据,用 node fs.writeFileSync 写文件。"
+	],
+	"context": "taskbook 自带脚本在 $TASK_DIR/scripts/(环境变量 TASK_DIR)。dispatcher 把自然语言时间意图算成 days(正整数)。流程:build-url.mjs 生成搜索 URL(含 t 参数,由 filter-lib mapDaysToTimeRange 算档位)→ navigate → dom-collector.js(装收集器,SSR DOM 抽帖子)→ 设 __redditScrollConfig → scroll-and-collect.js(长 evaluate,滚到底)→ 循环 dump-result.js(offset+=50)分块取全量 → filter-lib.mjs 的 normalizeRedditPost 归一化 + selectPosts 去重 → worker 拼装写文件。Reddit t 参数已服务端过滤,worker 不本地过滤。worker 是一次性进程,退出即销毁上下文。"
+}

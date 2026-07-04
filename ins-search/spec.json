@@ -1,0 +1,45 @@
+{
+	"goal": "给定 keyword 和自然语言时间意图,dispatcher 把时间算成 days(正整数,≤90),worker 用 UGK 管理的 chrome_cdp 搜索 Instagram 关键词页 + 种子页(hashtag/用户主页),按关键词 + 时间窗口过滤,把完整结构化结果(含逐帖详情)写入 $TASK_OUTPUT_DIR/ins_search_results.json。headless 友好,并行安全。",
+	"hardConstraints": [
+		"只用 UGK 管理的 chrome_cdp 工具操作浏览器,不碰端口/WebSocket/Docker/host-bridge/proxy:3456/web-access。",
+		"查询 URL 由 scripts/build-url.mjs 确定性生成(worker 调脚本拿,不自己拼),含 encodeURIComponent(keyword)。",
+		"days 由 dispatcher 算好注入。dispatcher 是 LLM,会把用户时间意图算成正整数天(≤90)。worker 不解析自然语言时间。",
+		"IG 滚动容器是 <html>(overflow: scroll),用 window.scrollBy 平滑渐进滚动(5 小步 × 200ms/轮,共 ~400px),不用单次跳底。这些在 scripts/seed-scroll.js 已实现。",
+		"多种子策略:关键词搜索页 + topsearch API 返回的精确 hashtag/用户主页 + 模糊匹配。最多扫 maxSeeds(默认 3)个种子。",
+		"逐帖详情:对每个发现的帖子链接,navigate 到详情页,从 <script type=application/ld+json> 提取结构化数据(postedAt/author/caption/likeCount/commentCount)。",
+		"按关键词匹配 + 时间窗口(days)过滤,用 scripts/filter-lib.mjs 的 selectRecentRelevantPosts 纯函数(worker 调 node 脚本)。",
+		"主产物必须是 $TASK_OUTPUT_DIR/ins_search_results.json,可被 JSON.parse。",
+		"全量结果必须落地到文件 —— worker 分块 evaluate dump-result.js 拿帖子清单,逐帖 navigate 取详情,累积写文件,不截断单条原文。",
+		"不要把全量一次性塞进 worker 上下文;逐帖处理,详情累积进 results 数组。",
+		"chrome_cdp 调用要带英文 reason,提到 local Chrome CDP / logged-in browser state。",
+		"不要做主题分析/情感分析/聚类 —— 这个 task 只负责收集和落盘。",
+		"runtime input 的字段都是标量。若 keyword/days 缺失或非标量(days 非正整数),说明 dispatcher 失败,worker 应报错退出,不要现编默认值。"
+	],
+	"acceptance": [
+		"$TASK_OUTPUT_DIR/ins_search_results.json 存在且可被 JSON.parse。",
+		"输出 JSON 至少含 platform, keyword, retrievedAt, queryUrl, timeWindow, benchmark, results 字段;results 为数组。",
+		"platform 是 'Instagram'。",
+		"keyword 等于 TASK_INPUT.keyword(worker 不改写关键词)。",
+		"timeWindow 是对象,含 days(正整数)和 timePhrase(等于 TASK_INPUT.timePhrase)字段。",
+		"queryUrl 是 IG 关键词搜索 URL(含 instagram.com/explore/search/keyword 和 q= 参数)。",
+		"results 非空时,每条至少含 postedAt(ISO 日期), author, caption, url;url 必须是 instagram.com 域名下的 /p/ /reel/ /tv/ 帖子链接。",
+		"每条 results[].postedAt 必须落在 [now - days*24h, now] 内(允许极小时钟偏差)。",
+		"每条 results[].caption 保留原文(或 trimText 后 ≥10 字符;纯空白的坏值必须被过滤)。",
+		"results 条数与 benchmark.filteredRows 一致(全量落地,不丢)。",
+		"results 内 url 唯一(无重复帖子)。",
+		"benchmark 是对象,含 seedsScanned, totalDiscovered, detailFetched, filteredRows, stopReason 字段。"
+	],
+	"forbidden": [
+		"不要用 host-bridge / proxy:3456 / Docker sidecar / web-access / 127.0.0.1:3456 浏览器代理(已废弃,改用 chrome_cdp 工具)。",
+		"不要调 subagent 分块摘要(死代码)。",
+		"不要把搜索/过滤逻辑复制进 worker 现写 —— 调用 $TASK_DIR/scripts/ 下的脚本(build-url.mjs / filter-lib.mjs / dom-collector.js / seed-scroll.js)。",
+		"不要在 verify 里要求结果必须 ≥1 条(IG 可能返回空或要求登录)。",
+		"不要在 worker 里写自然语言时间解析脚本/穷举正则 —— 时间由 dispatcher 算好(days),URL 由 build-url.mjs 生成。",
+		"不要用 scroll('bottom') 单次跳底 —— IG 无限滚动需要平滑渐进滚动(seed-scroll.js 已实现)。",
+		"不要在 runtime input 缺失/不完整时现编默认值 —— 直接报错退出。",
+		"不要自扩词或改写用户关键词 —— 原样传给脚本。",
+		"不要把评论区内容混成正文 caption。",
+		"不要触发浏览器下载 / 启动本地 HTTP server —— worker 是 node 进程,chrome_cdp evaluate 返回值直接就是数据,用 node fs.writeFileSync 写文件。"
+	],
+	"context": "taskbook 自带脚本在 $TASK_DIR/scripts/(环境变量 TASK_DIR)。dispatcher 把自然语言时间意图算成 days(正整数 ≤90)。流程:build-url.mjs 生成关键词页 URL → navigate → dom-collector.js(装收集器)→ 调 IG /web/search/topsearch/ API 拿 hashtag/用户 → 用 filter-lib.mjs 的 buildInstagramSeedUrls 生成种子清单 → 对每个种子:set __insSeedScrollConfig → seed-scroll.js(长 evaluate,滚种子页收集帖子链接)→ dump-result.js 分块取帖子清单 → 对每个帖子:navigate 详情页 → dom-collector.js 的 extractPostDetail() 取结构化数据 → filter-lib.mjs 的 selectRecentRelevantPosts 过滤+排序 → worker 拼装写文件。worker 是一次性进程,退出即销毁上下文。"
+}

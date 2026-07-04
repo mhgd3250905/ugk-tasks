@@ -1,0 +1,59 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"x_search_results.json"
+	],
+	"runtimeInput": [
+		"keyword",
+		"timePhrase",
+		"timeMode",
+		"timeAmount",
+		"timeUnit",
+		"startIso",
+		"endIso",
+		"canonical",
+		"maxSteps"
+	],
+	"runtimeInputMeta": {
+		"keyword": {
+			"description": "X/Twitter search keyword. Used verbatim in the X Latest query (do not add since:/until: or language filters unless explicitly included in the keyword).",
+			"required": true
+		},
+		"timePhrase": {
+			"description": "The user's original time phrase, preserved verbatim. Any language. e.g. 3h, 上周, 俩月, last week, past 2 months. Just echo what the user said about time.",
+			"required": true
+		},
+		"timeMode": {
+			"description": "How the time window is computed. One of: 'rolling' (X ago from now, e.g. 最近/过去/past/1month/俩月), 'calendar' (previous full natural period, e.g. 上周/last week/上个月/last month), 'calendar_to_now' (from start of current period to now, e.g. 今天/this week/本月).",
+			"required": true
+		},
+		"timeAmount": {
+			"description": "Positive number. The amount of the time unit. e.g. for '3h' → 3, for '俩月' → 2, for '上周' → 1. Use 2 for '俩/couple', 3 for 'few'.",
+			"required": true
+		},
+		"timeUnit": {
+			"description": "One of: 'hour', 'day', 'week', 'month'. The unit of the time window.",
+			"required": true
+		},
+		"startIso": {
+			"description": "ISO 8601 start datetime of the window, INCLUSIVE. You are an LLM, so COMPUTE this from the time phrase using the current date. e.g. for '3h' and now=2026-06-28T06:00:00Z → '2026-06-28T03:00:00.000Z'. For '上周' (calendar week starting Monday) → the Monday 00:00 of last week.",
+			"required": true
+		},
+		"endIso": {
+			"description": "ISO 8601 end datetime of the window, EXCLUSIVE (= now). You are an LLM, so COMPUTE this. For rolling/calendar_to_now this is the current time. For calendar (上周/上个月) this is the start of the current period (e.g. this Monday 00:00 for 上周).",
+			"required": true
+		},
+		"canonical": {
+			"description": "A short canonical label like '3hours' or '60days'. Use the smallest unit (e.g. '3hours' not '0.125days'). For rolling month use 30 days (e.g. '俩月' → '60days'). For calendar, use the actual span in days (e.g. '上周' → '7days').",
+			"required": true
+		},
+		"maxSteps": {
+			"description": "Optional. Maximum anchor-scroll iterations. Default 20. Raise to 40-80 for active day/month-range topics. Hard maximum 100.",
+			"required": false,
+			"default": 20
+		}
+	},
+	"requiredTools": [
+		"chrome_cdp"
+	]
+}

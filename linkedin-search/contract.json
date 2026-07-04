@@ -1,0 +1,28 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"linkedin_search_results.json"
+	],
+	"runtimeInput": [
+		"keyword",
+		"timePhrase",
+		"dateRange"
+	],
+	"runtimeInputMeta": {
+		"keyword": {
+			"description": "LinkedIn search keyword. Used verbatim in the LinkedIn content search query URL. Do not add operators unless explicitly included by the user.",
+			"required": true
+		},
+		"timePhrase": {
+			"description": "The user's original time phrase, preserved verbatim. Any language. e.g. 最近一天, 最近一周, 过去一个月, past 24 hours, last week. Just echo what the user said about time.",
+			"required": true
+		},
+		"dateRange": {
+			"description": "LinkedIn native date filter tier. One of exactly three values: 'past-24h' (last 24 hours), 'past-week' (last 7 days), 'past-month' (last 30 days). You are an LLM, so MAP the user's time phrase to the nearest tier that COVERS it (never pick a tier shorter than the user's intent, or results get missed). Rules: any phrase <=24h ('today','recent','今天','最近几小时','past 24h') → 'past-24h'; >24h and <=7d ('最近三天','上周','past few days','last week') → 'past-week'; >7d ('一个月','最近两周','past month','90 days' → round UP to the tier that covers it, so 90 days → 'past-month'). LinkedIn only supports these 3 tiers natively — do not invent others. Default 'past-week' if user is vague about duration.",
+			"required": true
+		}
+	},
+	"requiredTools": [
+		"chrome_cdp"
+	]
+}

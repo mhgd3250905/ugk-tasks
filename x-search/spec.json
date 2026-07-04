@@ -1,0 +1,38 @@
+{
+	"goal": "给定 keyword 和自然语言时间意图,dispatcher 把时间算成扁平标量字段(startIso/endIso 等),worker 用 UGK 管理的 chrome_cdp 搜索 X/Twitter Latest,按 [startIso,endIso) 过滤,把完整结构化结果写入 $TASK_OUTPUT_DIR/x_search_results.json。headless 友好,并行安全。",
+	"hardConstraints": [
+		"只用 UGK 管理的 chrome_cdp 工具操作浏览器,不碰端口/WebSocket/Docker/curl。",
+		"X 查询只用原始 keyword,不加 since:/until:/语言过滤,除非用户在 keyword 里显式包含。",
+		"时间窗口由 dispatcher 算好注入扁平字段(worker 读 contract.runtimeInput 的 startIso/endIso/timeMode/timeAmount/timeUnit/canonical/timePhrase)。dispatcher 是 LLM,能算日期。worker 不解析自然语言时间。",
+		"时间过滤窗口是 [startIso, endIso) —— 双边界。上周/上个月=自然周/月(calendar mode),最近/过去/1month/俩月=滚动窗口(rolling mode)。",
+		"主产物必须是 $TASK_OUTPUT_DIR/x_search_results.json,可被 JSON.parse。",
+		"输出 JSON 必须含 timeWindow 对象 —— worker 把扁平字段组装成 {raw:timePhrase, mode:timeMode, amount:timeAmount, unit:timeUnit, startIso, endIso, canonical}。",
+		"全量结果必须落地到文件 —— worker 分块 evaluate dump-result.js,把每块 append 进同一个文件,不截断单条原文。",
+		"不要把全量 rows 一次性塞进 worker 上下文(单次 evaluate 返回值过大);用 offset+=limit 分块。",
+		"chrome_cdp 调用要带英文 reason,提到 local Chrome CDP / logged-in browser state。",
+		"滚动用 anchor-overlap,不用固定像素跳;先装 dom-collector 再滚。",
+		"不要做主题分析/情感分析/聚类 —— 这个 task 只负责收集和落盘。",
+		"runtime input 的扁平时间字段都是标量(string/number),不是嵌套对象。若某字段缺失或非标量,说明 dispatcher 失败,worker 应报错退出,不要现编默认值。"
+	],
+	"acceptance": [
+		"$TASK_OUTPUT_DIR/x_search_results.json 存在且可被 JSON.parse。",
+		"输出 JSON 至少含 normalizedKeyword, rawQuery, timeWindow, cutoffIso, searchUrl, method, benchmark, results 字段;results 为数组。",
+		"timeWindow 是对象,含 raw, mode, amount, unit, startIso, endIso, canonical 字段;startIso/endIso 可解析且 startIso < endIso。",
+		"timeWindow.raw 等于 TASK_INPUT.timePhrase;cutoffIso 等于 timeWindow.startIso。",
+		"每条 results[].postedAt 必须落在 [timeWindow.startIso, timeWindow.endIso) 内(允许极小运行时钟偏差)。",
+		"results 非空时,每条至少含 postedAt, text, url,且含 author 或 handle 之一。",
+		"text 字段保留原文(不截断)。",
+		"benchmark 是对象,含 stopReason, score, grade, cutoffReached, anchorScrolls, rowsInspected, validRate, filteredRows。",
+		"searchUrl 等于 https://x.com/search?q=<encodeURIComponent(normalizedKeyword)>&src=typed_query&f=live。",
+		"results 条数与 benchmark.filteredRows 一致(全量落地,不丢)。"
+	],
+	"forbidden": [
+		"不要用 save-server / 本地 HTTP / 浏览器下载触发器落地(已废弃)。",
+		"不要调 subagent 分块摘要(死代码)。",
+		"不要把搜索脚本逻辑复制进 worker 现写 —— 调用 $TASK_DIR/scripts/ 下的脚本。",
+		"不要在 verify 里要求结果必须 ≥1 条或 benchmark 达固定分数(X 可能返回空)。",
+		"不要在 worker 里写自然语言时间解析脚本/穷举正则 —— 时间由 dispatcher 算好,worker 只吃扁平标量字段。",
+		"不要在 runtime input 缺失/不完整时现编默认时间值 —— 直接报错退出,让用户重试或修 dispatcher。"
+	],
+	"context": "taskbook 自带脚本在 $TASK_DIR/scripts/(环境变量 TASK_DIR)。dispatcher 在 /task run 时已把自然语言时间意图算成扁平标量字段(timePhrase/timeMode/timeAmount/timeUnit/startIso/endIso/canonical),worker 直接用并组装成 timeWindow 对象。流程:navigate → dom-collector.js(装收集器)→ 设 __xSearcherRunConfig(keyword,startIso,cutoffIso=startIso,endIso,rangeLabel=canonical,maxSteps) → anchor-scroll.js(timeoutMs 90000,按[startIso,endIso)过滤)→ 循环 dump-result.js(offset+=50)分块取全量 → worker 拼装写文件。单条 text 不截断。worker 是一次性进程,退出即销毁上下文。"
+}

@@ -1,0 +1,45 @@
+{
+	"goal": "给定 keyword 和自然语言时间意图,dispatcher 把时间算成 days(正整数),worker 用 UGK 管理的 chrome_cdp 搜索 TikTok,按关键词 + 时间窗口过滤,把完整结构化结果(含视频描述/作者/点赞)写入 $TASK_OUTPUT_DIR/tiktok_search_results.json。headless 友好,并行安全。",
+	"hardConstraints": [
+		"只用 UGK 管理的 chrome_cdp 工具操作浏览器,不碰端口/WebSocket/Docker/host-bridge/proxy:3456/web-access。",
+		"查询 URL 由 scripts/build-url.mjs 确定性生成(worker 调脚本拿,不自己拼),含 encodeURIComponent(keyword)。",
+		"days 由 dispatcher 算好注入。dispatcher 是 LLM,会把用户时间意图算成正整数天。worker 不解析自然语言时间。",
+		"TikTok 滚动容器是 <main id='grid-main'>(不是 window/body!),用 grid.scrollTop 平滑渐进滚动(5 小步 × 200ms/轮)。这些在 scripts/grid-scroll.js 已实现。",
+		"每轮滚动前必须 clickRetryButtons(点重试/Refresh 按钮),防 TikTok lazy-load 失败卡住 DOM。scripts/dom-collector.js 已实现。",
+		"日期从 [data-e2e='search-card-desc'] 的 DivTimeTag 提,三种格式:Xd/w/h/mo/y ago / M-D(今年) / YYYY-M-D(往年)。scripts/filter-lib.mjs 的 parseTikTokDateTag 已实现。",
+		"按关键词多词匹配 + 时间窗口(days)过滤,用 scripts/filter-lib.mjs 的 selectRecentRelevantVideos 纯函数(worker 调 node 脚本)。",
+		"主产物必须是 $TASK_OUTPUT_DIR/tiktok_search_results.json,可被 JSON.parse。",
+		"全量结果必须落地到文件 —— worker 分块 evaluate dump-result.js 取全量,累积写文件,不截断单条原文。",
+		"不要把全量一次性塞进 worker 上下文;用 offset+=limit 分块。",
+		"chrome_cdp 调用要带英文 reason,提到 local Chrome CDP / logged-in browser state。",
+		"不要做主题分析/情感分析 —— 这个 task 只负责收集和落盘。",
+		"runtime input 的字段都是标量。若 keyword/days 缺失或非标量(days 非正整数),说明 dispatcher 失败,worker 应报错退出,不要现编默认值。"
+	],
+	"acceptance": [
+		"$TASK_OUTPUT_DIR/tiktok_search_results.json 存在且可被 JSON.parse。",
+		"输出 JSON 至少含 platform, keyword, retrievedAt, queryUrl, timeWindow, benchmark, results 字段;results 为数组。",
+		"platform 是 'TikTok'。",
+		"keyword 等于 TASK_INPUT.keyword(worker 不改写关键词)。",
+		"timeWindow 是对象,含 days(正整数)和 timePhrase(等于 TASK_INPUT.timePhrase)字段。",
+		"queryUrl 是 TikTok 搜索 URL(含 tiktok.com/search 和 q= 参数)。",
+		"results 非空时,每条至少含 postedAt(ISO 日期或空), author, desc, url;url 必须是 tiktok.com 域名下的 /video/ 链接。",
+		"results 条数与 benchmark.filteredRows 一致(全量落地,不丢)。",
+		"results 内 url 唯一(无重复视频)。",
+		"benchmark 是对象,含 stopReason, actualScrolls, totalCollected, filteredRows, retriesClicked 字段。",
+		"每条 results[].postedAt 若非空,必须落在 [now - days*24h, now] 内(允许极小时钟偏差)。"
+	],
+	"forbidden": [
+		"不要用 host-bridge / proxy:3456 / Docker sidecar / web-access / 127.0.0.1:3456 浏览器代理(已废弃,改用 chrome_cdp 工具)。",
+		"不要调 subagent 分块摘要(死代码)。",
+		"不要把搜索/过滤/日期解析逻辑复制进 worker 现写 —— 调用 $TASK_DIR/scripts/ 下的脚本(build-url.mjs / filter-lib.mjs / dom-collector.js / grid-scroll.js)。",
+		"不要在 verify 里要求结果必须 ≥1 条(TikTok 可能返回空或要求登录)。",
+		"不要在 worker 里写自然语言时间解析脚本 —— 时间由 dispatcher 算好(days),URL 由 build-url.mjs 生成。",
+		"不要用 window.scrollTo 或 document.body 滚动 —— TikTok 的真正滚动容器是 <main id='grid-main'>(grid-scroll.js 已处理)。",
+		"不要忽略页面上的失败重试按钮 —— 必须每轮自动点击(dom-collector.js 的 clickRetryButtons 已实现),否则 DOM 停滞。",
+		"不要假设结果按时间倒序 —— TikTok 是算法推荐排序,新内容可能埋在很下面,需要多轮滚动挖掘。",
+		"不要在 runtime input 缺失/不完整时现编默认值 —— 直接报错退出。",
+		"不要把 TikTok 默认搜索页里的弱相关结果硬塞进最终输出 —— 用 filter-lib 过滤。",
+		"不要触发浏览器下载 / 启动本地 HTTP server —— worker 是 node 进程,chrome_cdp evaluate 返回值直接就是数据,用 node fs.writeFileSync 写文件。"
+	],
+	"context": "taskbook 自带脚本在 $TASK_DIR/scripts/(环境变量 TASK_DIR)。dispatcher 把自然语言时间意图算成 days(正整数)。流程:build-url.mjs 生成搜索 URL → navigate → dom-collector.js(装收集器 + clickRetryButtons)→ 设 __tiktokScrollConfig → grid-scroll.js(长 evaluate,timeoutMs 180000,滚 grid-main 收集卡片)→ 循环 dump-result.js(offset+=50)分块取全量 → filter-lib.mjs 的 selectRecentRelevantVideos 过滤+排序 → worker 拼装写文件。worker 是一次性进程,退出即销毁上下文。"
+}
