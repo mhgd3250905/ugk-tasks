@@ -4,14 +4,19 @@
 //   - 滚动容器优先级:#workspace > main > overflow 元素 > window(LinkedIn 用容器滚动,不是 window)
 //   - 无限滚动(小步随机 20-40%)+ 按钮点击(25% 概率点"加载更多/Show more")双策略
 //   - bounce 反爬:到底+无新内容时,先上滚再下滚触发懒加载
-//   - 停止:连续 4 轮 stale+到底(经 bounce 仍未加载)→ bottom_reached
-// config 从 window.__linkedinRunConfig 读(keyword/startIso/endIso/maxScrolls 等)。
+//   - 停止:bottom_reached 为主(滚到底),hardCap/maxRows 为纯安全网(防异常死循环)
+//
+// ⚠️ 设计原则(用户明确要求):LinkedIn 已服务端按 datePosted 过滤,worker 的职责是
+//    把过滤后的结果**全部滚出来**(滚到底),不要用 maxRows/hardCap 提前截断。
+//    past-month 内容多时可能需要 100+ 轮(实测 117 轮收 47 条属正常)。
+//    hardCap=300 / maxRows=500 是极端安全网,正常情况不应触发(触发说明页面异常)。
+// config 从 window.__linkedinRunConfig 读(keyword/maxRows/hardCap 等)。
 // 全量结果存 window.__linkedinCollector.rows(dom-collector 已装好)。resolve 返回摘要 + 预览。
 new Promise((resolve) => {
   const config = window.__linkedinRunConfig || {};
-  // LinkedIn 已在服务端按 datePosted 过滤时间范围,worker 该做的是把过滤后的结果全部滚出来。
-  // 所以不再用 maxScrolls 做截断 —— 它只是防无限循环的安全上限。真正停止靠"到底"判断。
-  const hardCap = 200; // 纯安全上限,防异常页面无限循环。正常停止不靠它。
+  // 默认值放得很宽:正常靠 bottom_reached 停,这两个只在页面异常死循环时兜底。
+  const maxRows = Number.isFinite(Number(config.maxRows)) ? Number(config.maxRows) : 500;
+  const hardCap = Number.isFinite(Number(config.hardCap)) ? Number(config.hardCap) : 300;
   const runStartPerf = performance.now();
   const startedAt = new Date().toISOString();
 
@@ -23,9 +28,9 @@ new Promise((resolve) => {
     const absParsed = Date.parse(normalized);
     if (Number.isFinite(absParsed)) return absParsed;
     const patterns = [
-      { pattern: /(\d+)\s*(?:分钟|分|mins?|minutes?)/i, unitMs: MINUTE_MS },
-      { pattern: /(\d+)\s*(?:小时|hrs?|hours?)/i, unitMs: HOUR_MS },
-      { pattern: /(\d+)\s*(?:天|days?)/i, unitMs: DAY_MS },
+      { pattern: /(\d+)\s*(?:分钟|分|mins?|minutes?|m)/i, unitMs: MINUTE_MS },
+      { pattern: /(\d+)\s*(?:小时|hrs?|hours?|h)/i, unitMs: HOUR_MS },
+      { pattern: /(\d+)\s*(?:天|days?|d)/i, unitMs: DAY_MS },
       { pattern: /(\d+)\s*(?:周|weeks?|w)(?!\S)/i, unitMs: 7 * DAY_MS },
       { pattern: /(\d+)\s*(?:个月|月|months?|mos?)(?!\S)/i, unitMs: 30 * DAY_MS },
     ];
@@ -145,9 +150,12 @@ new Promise((resolve) => {
 
   function doRound() {
     if (actualRounds >= hardCap) { stoppedReason = 'safety_cap_reached'; return finish(); }
+    // maxRows 兜底:LinkedIn 持续加载时,达到上限主动停(不追求绝对全量,够用即可)
+    const currentRows = window.__linkedinCollector?.rows?.length || 0;
+    if (currentRows >= maxRows) { stoppedReason = 'max_rows_reached'; return finish(); }
     actualRounds++;
 
-    const rowsBefore = window.__linkedinCollector?.rows?.length || 0;
+    const rowsBefore = currentRows;
     const scrollResult = scrollAndTryLoadMore();
     if (scrollResult.buttonClicked) totalButtonClicks++;
 

@@ -69,20 +69,25 @@ chrome_cdp action=evaluate expression="(() => { const t=document.title||''; cons
 
 ### 4. 设运行配置
 
-只注入 keyword(LinkedIn 已在服务端按 datePosted 过滤,worker 不需要本地时间过滤,也没有滚动轮数上限——滚到底为止):
+注入 keyword(LinkedIn 已在服务端按 datePosted 过滤,worker 的职责是把过滤后的结果**全部滚出来**):
 
 ```
 chrome_cdp action=evaluate expression="(() => { window.__linkedinRunConfig = { keyword: '<keyword>' }; return window.__linkedinRunConfig; })()" reason="local Chrome CDP logged-in browser state for LinkedIn content search" normalAccessAttempted=true
 ```
 
+> ⚠️ **不要设小的 maxRows/hardCap**。LinkedIn past-month 内容多时需要 100+ 轮才能滚到底(实测 117 轮收 47 条属正常)。脚本默认 `maxRows:500 / hardCap:300` 是极端安全网,正常情况不该触发,靠 `bottom_reached` 停。
+
 ### 5. 跑滚动采集(长 evaluate,滚到底为止)
 
-读 `$TASK_DIR/scripts/scroll-and-collect.js` 全文,作为 `expression` 传给 `chrome_cdp evaluate`,**带 `timeoutMs: 300000`**(5 分钟上限;LinkedIn 慢 + 反爬,可能滚很多轮。脚本会自动判断到底:连续 5 轮双信号(页面高度停滞 AND 无新帖)均无进展 → bottom_reached)。
+读 `$TASK_DIR/scripts/scroll-and-collect.js` 全文,作为 `expression` 传给 `chrome_cdp evaluate`,**带 `timeoutMs: 300000`**(5 分钟上限)。
 
 返回值是**摘要 + 预览**(小):`stoppedReason, scrollStatus{actualRounds,buttonClicks,totalDiscovered}, totalRows, rows(预览50条)`。全量结果在 `window.__linkedinCollector.rows`。
-- `stoppedReason=bottom_reached` = 滚到底了(正常完成)
+- `stoppedReason=bottom_reached` = 连续 5 轮(高度停滞 AND 无新帖)→ **真到底了(正常完成,应走这条)**
 - `stoppedReason=login_required` = 遇到登录墙
-- `stoppedReason=safety_cap_reached` = 200 轮安全上限(极少见,说明页面异常)
+- `stoppedReason=safety_cap_reached` = 300 轮安全上限(罕见,说明页面异常死循环)
+- `stoppedReason=max_rows_reached` = 500 条上限(罕见,说明被反爬灌水)
+
+> ⚠️ **正常情况必须是 `bottom_reached`**。若返回 `safety_cap_reached` 或 `max_rows_reached`,说明没滚到底就被安全网截断了 —— 检查是不是脚本异常或反爬持续灌水,而不是把这当正常。
 
 记下返回的 `totalRows`(全量条数),下一步分块数 = `ceil(totalRows / 50)`。**worker 不做时间过滤**(LinkedIn datePosted 已服务端过滤)。
 
