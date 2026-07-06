@@ -1,0 +1,39 @@
+{
+	"goal": "Collect recent diabetes medical-device news from Phase 3 custom sources and CDP-recovered blocked sources.",
+	"hardConstraints": [
+		"Do not mix this into medical-diabetes-news; keep a separate Phase 3 taskbook.",
+		"Use Node built-ins only; do not add dependencies.",
+		"Prevent concurrent runs of this task with a temp-directory lock so duplicate visible Chrome sessions are not launched.",
+		"Use sequential self-managed Chrome CDP sessions for Dexcom IR, Insulet IR, MassDevice, and best-effort MobiHealthNews because direct HTTP is blocked by Cloudflare, and clean each process tree before moving to the next source.",
+		"Do not scrape article detail pages; use listing/RSS metadata only.",
+		"Preserve official URLs, dates, source names, and titles in JSON.",
+		"Record source failures in sourceStatus instead of pretending they succeeded.",
+		"Cap requested windows at 30 days and trust dispatcher-provided startIso/endIso.",
+		"Do not emit Markdown, HTML, or localized report text; rendering and language selection belong to diabetes-news-report-renderer."
+	],
+	"acceptedSources": [
+		"Sequel Med Tech",
+		"Senseonics",
+		"Dexcom IR",
+		"Insulet IR",
+		"MassDevice",
+		"MobiHealthNews"
+	],
+	"acceptance": [
+		"Write diabetes_device_custom_source_news.json in TASK_OUTPUT_DIR.",
+		"Do not write diabetes_device_custom_source_news.md or diabetes_device_custom_source_news.html.",
+		"sourceStatus includes stable custom sources and CDP-recovered sources.",
+		"Dexcom IR, Insulet IR, and MassDevice are recovered through CDP and expose parseable listing items; per-source matched counts may be zero when the requested rolling window has no qualifying diabetes-device item.",
+		"MobiHealthNews is attempted through CDP with its Dexcom tag as the diabetes-device slice, but it is best-effort and must not fail the whole report when blocked.",
+		"Every result date is parseable and within the requested time window.",
+		"Every result URL uses an accepted official source domain."
+	],
+	"forbidden": [
+		"Do not output medical advice.",
+		"Do not use company names alone as inclusion criteria when the item text is not diabetes-device related.",
+		"Do not bypass Cloudflare/login/CAPTCHA; use visible CDP and user-assisted confirmation when needed.",
+		"Do not output Markdown or HTML.",
+		"Do not perform language localization in this collector."
+	],
+	"context": "Phase 3 plus Phase 4 from source-plan.md: handle custom parser sources and recover selected blocked official company sources with CDP. This task is a structured JSON collector only."
+}

@@ -1,0 +1,31 @@
+{
+	"goal": "Collect recent diabetes-related medical news metadata from RSS/feed/sitemap/simple HTTP sources, with diabetes medical-device items ranked first.",
+	"hardConstraints": [
+		"Use RSS, sitemap, and simple HTTP sources only.",
+		"Do not use Chrome CDP.",
+		"Do not fetch article detail pages.",
+		"Use only Node built-ins; do not add dependencies.",
+		"The requested window is capped at 30 days.",
+		"Worker must use dispatcher-computed days/startIso/endIso from TASK_INPUT and must not re-interpret relative dates.",
+		"Preserve original source titles, dates, URLs, excerpts, and source names in JSON.",
+		"Do not emit Markdown, HTML, or localized report text; rendering and language selection belong to diabetes-news-report-renderer."
+	],
+	"acceptance": [
+		"Write medical_diabetes_news.json in TASK_OUTPUT_DIR.",
+		"Do not write medical_diabetes_news.md or medical_diabetes_news.html.",
+		"JSON includes retrieval timestamp, timeWindow, sources, sourceStatus, summary counts, and results array.",
+		"Every result has source, title, publishedAt, url, feedExcerpt, and isDeviceRelated.",
+		"Every result URL uses an accepted source domain.",
+		"Every result publishedAt is within the requested [startIso,endIso) window.",
+		"No duplicate URLs are emitted.",
+		"Device-related results are ranked before broader diabetes-only results.",
+		"Drug Delivery Business diabetes category and high-signal diabetes-device company tag feeds stay configured."
+	],
+	"forbidden": [
+		"Do not output medical advice.",
+		"Do not include Chrome/CDP-only sources.",
+		"Do not output Markdown or HTML.",
+		"Do not perform language localization in this collector."
+	],
+	"context": "Phase 1 source collection from source-plan.md. This task is a structured JSON collector only."
+}

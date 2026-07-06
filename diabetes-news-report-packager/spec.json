@@ -1,0 +1,21 @@
+{
+	"goal": "Create one deterministic report pack from diabetes news collector JSON artifacts before translation.",
+	"hardConstraints": [
+		"Use Node built-ins only; do not add dependencies.",
+		"Do not fetch the web, use Chrome CDP, translate text, or render HTML.",
+		"Accept JSON files and directories containing JSON files.",
+		"Deduplicate by normalized URL before translation.",
+		"Apply maxItems before translation."
+	],
+	"acceptance": [
+		"Write diabetes_news_report_pack.json in TASK_OUTPUT_DIR.",
+		"Output item count is <= maxItems.",
+		"Items are newest first.",
+		"Highlights prioritize regulatory/device items.",
+		"Source status rows are preserved for the renderer."
+	],
+	"forbidden": [
+		"Do not output HTML or Markdown.",
+		"Do not translate visible text."
+	]
+}

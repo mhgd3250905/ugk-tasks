@@ -1,0 +1,33 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"diabetes_news_report.html"
+	],
+	"runtimeInput": [
+		"packPath",
+		"targetLanguage",
+		"title"
+	],
+	"runtimeInputMeta": {
+		"packPath": {
+			"description": "Required path to diabetes_news_report_pack.json or diabetes_news_report_pack.zh-CN.json.",
+			"required": true
+		},
+		"targetLanguage": {
+			"description": "Optional report language. Defaults to pack targetLanguage or original. zh-CN requires a translated pack from diabetes-news-report-translator.",
+			"required": false,
+			"default": "original",
+			"allowedValues": [
+				"original",
+				"zh-CN"
+			]
+		},
+		"title": {
+			"description": "Optional report title override.",
+			"required": false
+		}
+	},
+	"requiredBinaries": [
+		"node"
+	]
+}

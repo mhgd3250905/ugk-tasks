@@ -1,0 +1,44 @@
+{
+	"goal": "Collect recent official diabetes medical-device regulatory, database, safety, and conference signals from openFDA, ClinicalTrials.gov, FDA CDRH pages, ADA, ATTD, and EASD.",
+	"hardConstraints": [
+		"Create a separate taskbook; do not mix these sources into medical-diabetes-news.",
+		"Use official HTTP APIs or official listing pages only; do not use Chrome CDP.",
+		"Use only Node built-ins; do not add dependencies.",
+		"The requested window is capped at 30 days.",
+		"Worker must use dispatcher-computed days/startIso/endIso from TASK_INPUT and must not re-interpret relative dates.",
+		"Preserve official IDs, dates, URLs, source names, and titles in JSON.",
+		"Do not fabricate context; context must come from official metadata fields or official listing-page cells.",
+		"Do not turn undated conference landing-page links into dated news items; record them only in sourceStatus unless a clear item date is present.",
+		"Do not emit Markdown, HTML, or localized report text; rendering and language selection belong to diabetes-news-report-renderer."
+	],
+	"acceptedSources": [
+		"openFDA Device 510(k)",
+		"openFDA Device Recall",
+		"openFDA Device Enforcement",
+		"ClinicalTrials.gov",
+		"FDA CDRH News and Updates",
+		"FDA Medical Device Safety",
+		"ADA Scientific Sessions",
+		"ATTD Global",
+		"EASD Annual Meeting"
+	],
+	"acceptance": [
+		"Write diabetes_device_regulatory_signals.json in TASK_OUTPUT_DIR.",
+		"Do not write diabetes_device_regulatory_signals.md or diabetes_device_regulatory_signals.html.",
+		"Every result has source, signalType, title, date, url, company, deviceOrProduct, context, isDiabetesDeviceRelated, and id.",
+		"Every result date is parseable and within the requested day window.",
+		"Every result URL uses an accepted official FDA/openFDA/ClinicalTrials/ADA/ATTD/EASD domain.",
+		"No duplicate source/id pairs are emitted.",
+		"sourceFilter=all includes the Phase 2.5 official/conference sources: fda-cdrh, fda-device-safety, ada, attd, and easd."
+	],
+	"forbidden": [
+		"Do not scrape article detail pages.",
+		"Do not include general diabetes drug trials unless a device/CGM/pump/AID term is present in trial metadata.",
+		"Do not include general medical-device pages unless a diabetes-device product or technology term is present.",
+		"Do not use company names alone as inclusion criteria because they produce non-diabetes-device false positives.",
+		"Do not output medical advice.",
+		"Do not output Markdown or HTML.",
+		"Do not perform language localization in this collector."
+	],
+	"context": "Phase 2 plus Phase 2.5 from source-plan.md. This task collects regulatory/database/official safety/conference signals as structured JSON only."
+}

@@ -1,0 +1,21 @@
+{
+	"goal": "Translate visible report pack fields into zh-CN after dedupe/truncation and before HTML rendering.",
+	"hardConstraints": [
+		"Translate only the packed final report items.",
+		"Preserve original fields and metadata for audit.",
+		"Preserve URLs, dates, source names, company/product names, FDA/510(k)/NCT identifiers.",
+		"Do not render HTML or Markdown.",
+		"Do not add medical advice or facts not in the source."
+	],
+	"acceptance": [
+		"Write translation_units.json, translations.zh-CN.json, and diabetes_news_report_pack.zh-CN.json.",
+		"Translated pack has the same item count and itemIds as the source pack.",
+		"Each item has translatedTitle and translatedSummary.",
+		"English-heavy source fields produce Chinese readable translations instead of English text with a Chinese prefix."
+	],
+	"forbidden": [
+		"Do not translate the whole upstream collector JSON.",
+		"Do not change URL/date/source metadata.",
+		"Do not render HTML."
+	]
+}

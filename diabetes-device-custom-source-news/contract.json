@@ -1,0 +1,40 @@
+{
+	"outputDir": "<runtime>",
+	"maxRetry": 0,
+	"artifacts": [
+		"diabetes_device_custom_source_news.json"
+	],
+	"runtimeInput": [
+		"timePhrase",
+		"days",
+		"startIso",
+		"endIso",
+		"maxItems"
+	],
+	"runtimeInputMeta": {
+		"timePhrase": {
+			"description": "The user's original time expression only, preserved verbatim. Do not include the task topic. Examples: 最近3天, 最近7天, 最近一个月, past week, past month.",
+			"required": true
+		},
+		"days": {
+			"description": "Integer number of recent days to collect, capped to 1..30. Map 最近3天/past 3 days to 3, 最近一周/last week/past week to 7, 最近一个月/past month to 30. If vague, default to 7.",
+			"required": true
+		},
+		"startIso": {
+			"description": "ISO 8601 UTC start datetime, inclusive. Compute from the current UTC time injected by the dispatcher: startIso = endIso - days days.",
+			"required": true
+		},
+		"endIso": {
+			"description": "ISO 8601 UTC end datetime, exclusive. For recent windows this is the dispatcher's current UTC time.",
+			"required": true
+		},
+		"maxItems": {
+			"description": "Optional maximum returned articles after sorting. Default 100. Hard maximum 300.",
+			"required": false,
+			"default": 100
+		}
+	},
+	"requiredBinaries": [
+		"node"
+	]
+}

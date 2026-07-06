@@ -1,0 +1,21 @@
+{
+	"goal": "Render a prebuilt diabetes news report pack into one fixed-template HTML report.",
+	"hardConstraints": [
+		"Input is a pack JSON, not raw collector JSON.",
+		"Do not merge, dedupe, truncate, translate, fetch the web, use Chrome CDP, or mutate input files.",
+		"Output exactly one HTML artifact.",
+		"zh-CN rendering requires translatedTitle and translatedSummary on report items."
+	],
+	"acceptance": [
+		"Write diabetes_news_report.html in TASK_OUTPUT_DIR.",
+		"HTML includes fixed zh-CN sections when rendering zh-CN.",
+		"HTML preserves every rendered source URL as a clickable link.",
+		"HTML renders pack items once in pack order.",
+		"zh-CN HTML uses translated visible text, not English text wrapped with Chinese prefixes."
+	],
+	"forbidden": [
+		"Do not read raw collector JSON directly.",
+		"Do not output Markdown or JSON.",
+		"Do not perform translation."
+	]
+}

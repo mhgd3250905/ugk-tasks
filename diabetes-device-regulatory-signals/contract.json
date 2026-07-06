@@ -1,0 +1,58 @@
+{
+	"outputDir": "<runtime>",
+	"maxRetry": 0,
+	"artifacts": [
+		"diabetes_device_regulatory_signals.json"
+	],
+	"runtimeInput": [
+		"timePhrase",
+		"days",
+		"startIso",
+		"endIso",
+		"maxItems",
+		"sourceFilter"
+	],
+	"runtimeInputMeta": {
+		"timePhrase": {
+			"description": "The user's original time expression only, preserved verbatim. Do not include the task topic. Examples: 最近3天, 最近7天, 最近一个月, past week, past month.",
+			"required": true
+		},
+		"days": {
+			"description": "Integer number of recent days to collect, capped to 1..30. Map 最近3天/past 3 days to 3, 最近一周/last week/past week to 7, 最近一个月/past month to 30. If vague, default to 7.",
+			"required": true
+		},
+		"startIso": {
+			"description": "ISO 8601 UTC start datetime, inclusive. Compute from the current UTC time injected by the dispatcher: startIso = endIso - days days.",
+			"required": true
+		},
+		"endIso": {
+			"description": "ISO 8601 UTC end datetime, exclusive. For recent windows this is the dispatcher's current UTC time.",
+			"required": true
+		},
+		"maxItems": {
+			"description": "Optional maximum returned signals after sorting. Default 100. Hard maximum 300.",
+			"required": false,
+			"default": 100
+		},
+		"sourceFilter": {
+			"description": "Optional source subset. Use all by default. Map 510(k)/clearance/获批 to openfda-510k; recall/召回/correction to openfda-recall; enforcement/执法 to openfda-enforcement; ClinicalTrials/clinical trials/临床试验 to clinicaltrials; FDA CDRH/FDA 官方更新 to fda-cdrh; FDA safety/early alert/安全警示 to fda-device-safety; ADA Scientific Sessions to ada; ATTD to attd; EASD to easd.",
+			"required": false,
+			"default": "all",
+			"allowedValues": [
+				"all",
+				"openfda-510k",
+				"openfda-recall",
+				"openfda-enforcement",
+				"clinicaltrials",
+				"fda-cdrh",
+				"fda-device-safety",
+				"ada",
+				"attd",
+				"easd"
+			]
+		}
+	},
+	"requiredBinaries": [
+		"node"
+	]
+}

@@ -1,6 +1,6 @@
 # ugk-tasks
 
-[UGK](https://github.com/mhgd3250905/ugk-tui) `/task` taskbook 集合。两类能力:**配音流水线**(视频→字幕→翻译→配音→合成)和**社媒关键词搜索**(X/LinkedIn/Instagram/TikTok/Reddit,关键词 + 时间范围)。全部经 worker 真跑 + verify 验证。
+[UGK](https://github.com/mhgd3250905/ugk-tui) `/task` taskbook 集合。三类能力:**配音流水线**(视频→字幕→翻译→配音→合成)、**社媒关键词搜索**(X/LinkedIn/Instagram/TikTok/Reddit,关键词 + 时间范围)和**糖尿病新闻汇报链路**(多源采集→翻译→HTML 报告)。全部经 worker 真跑 + verify 验证。
 
 ## 包含的 taskbook
 
@@ -26,6 +26,17 @@
 | `reddit-search` | Reddit | 登录态 CDP + SSR DOM(Reddit 2026 强制 OAuth,匿名 .json/.rss 已废弃) | Reddit 原生 `t=hour/day/week/month/year/all` |
 
 > 搜索类 taskbook 全部依赖**本地登录态 Chrome**(CDP)。Reddit 因 2026-05-28 起强制 OAuth、匿名端点全反爬,改走登录态 SSR DOM 抽取(无需注册 app)。
+
+### 糖尿病新闻汇报链路(JSON → 翻译 → HTML)
+
+| taskbook | 作用 | 输出 |
+|---|---|---|
+| `medical-diabetes-news` | RSS/sitemap/simple HTTP 采集糖尿病医学与器械新闻 | `medical_diabetes_news.json` |
+| `diabetes-device-regulatory-signals` | FDA/MAUDE/召回/安全通告等监管信号采集 | `diabetes_device_regulatory_signals.json` |
+| `diabetes-device-custom-source-news` | Sequel/Senseonics/Dexcom/Insulet/MassDevice/MobiHealthNews 自定义源采集 | `diabetes_device_custom_source_news.json` |
+| `diabetes-news-report-translator` | 对上游 JSON 中需要本地化的字段做指定语言翻译 | `diabetes_news_translated.json` |
+| `diabetes-news-report-renderer` | 汇总、清洗、去重并渲染规范 HTML 报告 | `diabetes_news_report.html` |
+| `diabetes-news-report-packager` | 一步打包翻译 + 渲染流程 | `diabetes_news_report.html` |
 
 ## 配音流水线
 

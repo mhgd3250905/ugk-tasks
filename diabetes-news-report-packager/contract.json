@@ -1,0 +1,29 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"diabetes_news_report_pack.json"
+	],
+	"runtimeInput": [
+		"inputPaths",
+		"maxItems",
+		"title"
+	],
+	"runtimeInputMeta": {
+		"inputPaths": {
+			"description": "Required array of collector JSON files or directories containing collector JSON artifacts.",
+			"required": true
+		},
+		"maxItems": {
+			"description": "Optional maximum packed items after merge, dedupe, and sorting. Default 300. Hard maximum 500.",
+			"required": false,
+			"default": 300
+		},
+		"title": {
+			"description": "Optional report title carried into downstream translation/rendering.",
+			"required": false
+		}
+	},
+	"requiredBinaries": [
+		"node"
+	]
+}

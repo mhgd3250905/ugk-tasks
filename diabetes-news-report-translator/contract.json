@@ -1,0 +1,28 @@
+{
+	"outputDir": "<runtime>",
+	"artifacts": [
+		"translation_units.json",
+		"translations.zh-CN.json",
+		"diabetes_news_report_pack.zh-CN.json"
+	],
+	"runtimeInput": [
+		"packPath",
+		"targetLanguage"
+	],
+	"runtimeInputMeta": {
+		"packPath": {
+			"description": "Required explicit local path to diabetes_news_report_pack.json from diabetes-news-report-packager. If the user does not provide a concrete file path, fail required input extraction instead of guessing or returning only targetLanguage.",
+			"required": true
+		},
+		"targetLanguage": {
+			"description": "Required target report language. Current supported value is zh-CN.",
+			"required": true,
+			"allowedValues": [
+				"zh-CN"
+			]
+		}
+	},
+	"requiredBinaries": [
+		"node"
+	]
+}
